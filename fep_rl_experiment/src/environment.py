@@ -46,25 +46,22 @@ class PandaPickCubeROS:
             self.prev_action = np.zeros(3)
             self.current_pos = self.robot.get_end_effector_pos()
 
-        # 3. Occasionally aid exploration (optional in real world)
-        # This is risky or unnecessary in real-world environments, so skip or log-only.
-
         # 4. Cartesian control
         delta_pos = action[:2]  # y, z movement
         gripper_cmd = action[2] > 0  # binary open/close
         delta_xyz = np.array([0.0, *delta_pos])  # No x control
-
         new_pos = self.robot.move_tip(delta_xyz)
         self.robot.set_gripper(gripper_cmd)
         self.current_pos = new_pos
-
         # 5. Rewards
-        reward = 0.0
-
-        # Reward for small action changes (action smoothness)
-        da = np.linalg.norm(action - self.prev_action)
-        reward += self.config.reward_config.action_rate * da
-        self.prev_action = action
+        raw_rewards = self._get_reward()
+        rewards = {
+            k: v * self._config.reward_config.reward_scales[k]
+            for k, v in raw_rewards.items()
+        }
+        hand_box = collision.geoms_colliding(data, self._box_geom, self._hand_geom)
+        raw_rewards['no_box_collision'] = np.where(hand_box, 0.0, 1.0)
+        total_reward = np.clip(sum(rewards.values()), -1e4, 1e4)
 
         # Sparse reward: check box lifted
         lifted = self.robot.check_box_lifted()
@@ -88,17 +85,8 @@ class PandaPickCubeROS:
         }
 
     def _get_reward(self, info):
-        # info should include:
-        # - target_pos: np.array (3,)
-        # - box_pos: np.array (3,)
-        # - box_rot_quat: np.array (4,)  # (w, x, y, z)
-        # - gripper_pos: np.array (3,)
-        # - robot_qpos: np.array (n_joints,)
-        # - init_qpos: np.array (n_joints,)
-        # - target_rot_quat: np.array (4,)
-
         target_pos = info["target_pos"]
-        box_pos = info["box_pos"]
+        box_pos = self.robot.box_pos
         gripper_pos = info["gripper_pos"]
         robot_qpos = info["robot_qpos"]
         init_qpos = self._init_q  # initial robot joint pos stored in env
