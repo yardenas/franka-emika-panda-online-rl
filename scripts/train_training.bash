@@ -18,4 +18,4 @@ SSH_PID=$!
 trap "echo 'Terminating...'; kill $SSH_PID; exit" INT TERM EXIT
 
 # Run local ROS2 launch command with session_id
-roslaunch fep_rl_experiment sim_to_real.launch load_command_sampling:=true session_id:=${SESSION_NAME}
+roslaunch fep_rl_experiment sim_to_real.launch 
