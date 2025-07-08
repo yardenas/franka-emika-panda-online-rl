@@ -43,8 +43,17 @@ class PandaPickCubeROS:
         x_plane = self.robot.goal_tip_transform[0, 3] - 0.03
         self.target_pos = np.array([x_plane, 0.0, 0.2])
         self.target_quat = np.array([1.0, 0.0, 0.0, 0.0])
-        # TODO (yarden): fix this
-        self.init_joint_state = np.array([])
+        self.init_joint_state = np.array(
+            [
+                -2.00000e-05,
+                4.78040e-01,
+                -5.50000e-04,
+                -1.81309e00,
+                -1.61000e-03,
+                2.34597e00,
+                7.85010e-01,
+            ]
+        )
         self.last_reached_box = 0.0
 
     def reset(self) -> Dict[str, Any]:
