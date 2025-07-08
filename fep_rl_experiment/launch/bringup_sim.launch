@@ -1,6 +1,8 @@
 <launch>
     <include file="$(find franka_gazebo)/launch/panda.launch">
         <arg name="controller" value="cartesian_impedance_example_controller"/>
+        <arg name="rviz" value="true"/>
+        <arg name="headless" value="true"/>
     </include>
     <node pkg="fep_rl_experiment" type="robot_interface.py" output="screen" name="robot_interface"/>
     <node pkg="fep_rl_experiment" type="dummy_image_publisher.py" output="screen" name="image_publisher"/>

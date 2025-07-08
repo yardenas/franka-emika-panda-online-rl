@@ -1,5 +1,6 @@
 from typing import Any, NamedTuple
 import numpy as np
+import time
 from fep_rl_experiment.robot import Robot
 
 from typing import Dict
@@ -57,9 +58,8 @@ class PandaPickCubeROS:
         self.last_reached_box = 0.0
 
     def reset(self) -> Dict[str, Any]:
-        self.robot.reset_pose()
-        self.step_count = 0
-        self.gripper_closed = False
+        self.robot.reset_service_cb(None)
+        time.sleep(5.)
         img = self.robot.get_camera_image()
         obs = {"pixels/view_0": img.astype(np.float32) / 255.0}
         return obs
@@ -69,7 +69,6 @@ class PandaPickCubeROS:
         only_yz = np.array([0.0, *action[1:]])  # No x control
         new_pos = self.robot.act(only_yz)
         self.current_pos = new_pos
-        # 5. Rewards
         raw_rewards = self._get_reward()
         rewards = {
             k: v * self._config.reward_config.reward_scales[k]
@@ -79,8 +78,7 @@ class PandaPickCubeROS:
         hand_box = False
         raw_rewards["no_box_collision"] = np.where(hand_box, 0.0, 1.0)
         total_reward = np.clip(sum(rewards.values()), -1e4, 1e4)
-        # FIXME (yarden): figure out the frame here.
-        box_pos = self.robot.get_cube_pos(frame="world")
+        box_pos = self.robot.get_cube_pos()
         total_reward += (box_pos[2] > 0.05) * _REWARD_CONFIG["lifted_reward"]
         success = np.linalg.norm(box_pos[2], self.target_pos) < _SUCCESS_THRESHOLD
         total_reward += success * _REWARD_CONFIG["success_reward"]
@@ -88,19 +86,19 @@ class PandaPickCubeROS:
         reward = max(total_reward - self.prev_reward, 0.0)
         self.prev_reward = max(reward + self.prev_reward, self.prev_reward)
         # Observations
-        obs = {}
-        obs["pixels/view_0"] = self.robot.get_camera_image()
+        img = self.robot.get_camera_image()
+        obs = {"pixels/view_0": img.astype(np.float32) / 255.0}
         # TODO (yarden): measure this with estop
         done = False
         info = {**rewards, "reached_box": success}
         return obs, reward, done, info
 
-    def _get_reward(self, info):
-        box_pos = self.robot.get_cube_pos(frame="world")
+    def _get_reward(self):
+        box_pos = self.robot.get_cube_pos()
         # FIXME (yarden): double check that end effector pos == gripper pos
         gripper_pos = self.robot.get_end_effector_pos()
         pos_err = np.linalg.norm(box_pos - self.target_pos)
-        box_mat = _quat_to_mat(self.robot.get_cube_quat(frame="world"))
+        box_mat = _quat_to_mat(self.robot.get_cube_quat())
         target_mat = _quat_to_mat(self.target_quat)
         rot_err = np.linalg.norm(target_mat.ravel()[:6] - box_mat.ravel()[:6])
         box_target = 1.0 - np.tanh(5 * (0.9 * pos_err + 0.1 * rot_err))
