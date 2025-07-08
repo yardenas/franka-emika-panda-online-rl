@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import rospy
 import numpy as np
-import actionlib
+import cv2
 from franka_gripper.msg import GraspActionGoal
 from sensor_msgs.msg import Image
 from geometry_msgs.msg import PoseStamped
@@ -27,7 +27,7 @@ class Robot:
         self.bridge = CvBridge()
         self.latest_image = None
         self.image_sub = rospy.Subscriber(
-            "/camera/image_raw", Image, self.image_callback, queue_size=1
+            "/camera/color/image_raw", Image, self.image_callback, queue_size=1
         )
         self.ee_pose_sub = rospy.Subscriber(
             "/cartesian_impedance_example_controller/measured_pose",
@@ -62,7 +62,12 @@ class Robot:
 
     def image_callback(self, msg):
         try:
-            self.latest_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding="bgr8")
+            bgr_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding="bgr8")
+            rgb_image = cv2.cvtColor(bgr_image, cv2.COLOR_BGR2RGB)
+            # Normalize to [0, 1] and convert to float32
+            rgb_image_normalized = rgb_image.astype(np.float32) / 255.0
+            # Now rgb_image_normalized is an RGB image with float values in [0, 1]
+            self.latest_image = rgb_image_normalized
         except Exception as e:
             rospy.logerr(f"Error converting image: {e}")
 
@@ -104,8 +109,8 @@ class Robot:
         dx, dy, dz in range [-1, 1], scaled by action_scale
         gripper: <0 means close, >=0 means open
         """
-        if self.current_tip_pos is None:
-            rospy.logwarn("Not ready yet.")
+        if not self.ok:
+            rospy.logwarn("Not ready yet. Cannot execute action.")
             return
         # Scale and apply limits
         delta_pos = action[:3] * self._action_scale
@@ -140,6 +145,10 @@ class Robot:
     def get_end_effector_pos(self) -> np.ndarray:
         return self.current_tip_pos
 
+    @property
+    def ok(self):
+        return self.current_tip_pos is not None and self.latest_image is not None
+
 
 class BoxInteractor:
     def __init__(self):
@@ -162,7 +171,6 @@ class BoxInteractor:
                 rospy.Time(0),
                 rospy.Duration(1.0),
             )
-
             pose_transformed = tf2_geometry_msgs.do_transform_pose(msg, transform)
             self.latest_box_pose_global = pose_transformed
             rospy.loginfo(f"Box pose in base frame: {pose_transformed.pose.position}")

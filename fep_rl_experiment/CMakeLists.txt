@@ -47,6 +47,7 @@ catkin_package(
 ## in contrast to setup.py, you can choose the destination
 catkin_install_python(PROGRAMS
   nodes/robot_interface.py
+  nodes/dummy_image_publisher.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
