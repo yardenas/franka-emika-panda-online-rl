@@ -7,6 +7,7 @@ from cv_bridge import CvBridge
 from std_srvs.srv import Empty, SetBool
 import tf2_ros
 import tf2_geometry_msgs
+from scipy.spatial.transform import Rotation as R
 
 
 class Robot:
@@ -36,8 +37,15 @@ class Robot:
         )
         self._action_scale = 0.005
         self.current_tip_pos = None
-        # FIXME (yarden): get this value from the mujoco environment
-        self.goal_tip_quat = None
+        self.goal_tip_quat = np.array(
+            [
+                [9.9849617e-01, 9.4118714e-04, 5.4812428e-02, 6.6105318e-01],
+                [1.0211766e-03, -9.9999845e-01, -1.4304515e-03, -5.1778345e-04],
+                [5.4810949e-02, 1.4842749e-03, -9.9849564e-01, 1.7906836e-01],
+                [0.0000000e00, 0.0000000e00, 0.0000000e00, 1.0000000e00],
+            ]
+        )
+        self.start_pos = np.array([6.6105318e-01, -5.1778345e-04, 1.7906836e-01])
 
     def image_callback(self, msg):
         try:
@@ -54,24 +62,31 @@ class Robot:
 
     def get_camera_image(self) -> np.ndarray:
         return self.latest_image
-    
+
     def start_service_cb(self, req):
         self._running = req.data
         return True, "Started controller."
-        
+
     def reset_service_cb(self, req):
         """Resets the controller."""
-        # FIXME (yarden): get this from the mujoco environment
         target_pose = PoseStamped()
         target_pose.header.frame_id = "panda_link0"
         target_pose.header.stamp = rospy.Time.now()
-        target_pose.pose.position.x = 0.476
-        target_pose.pose.position.y = 0.040
-        target_pose.pose.position.z = 0.15
-        target_pose.pose.orientation.x = -0.675
-        target_pose.pose.orientation.y = 0.737
-        target_pose.pose.orientation.z = 0.00
-        target_pose.pose.orientation.w = 0.000
+        target_pose.pose.position.x = float(self.start_pos[0])
+        target_pose.pose.position.y = float(self.start_pos[1])
+        target_pose.pose.position.z = float(self.start_pos[2])
+
+        # Extract rotation matrix (top-left 3x3 of the matrix)
+        rotation_matrix = self.goal_tip_quat[:3, :3]
+
+        # Convert rotation matrix to quaternion
+        quat = R.from_matrix(rotation_matrix).as_quat()  # [x, y, z, w]
+
+        # Set orientation from quaternion
+        target_pose.pose.orientation.x = quat[0]
+        target_pose.pose.orientation.y = quat[1]
+        target_pose.pose.orientation.z = quat[2]
+        target_pose.pose.orientation.w = quat[3]
         self._desired_ee_pose_pub.publish(target_pose)
         self._running = False
         return []
