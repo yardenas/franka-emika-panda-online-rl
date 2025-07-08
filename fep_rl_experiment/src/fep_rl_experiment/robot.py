@@ -19,14 +19,19 @@ class Robot:
             PoseStamped,
             queue_size=1,
         )
-        self._gripper_pub = rospy.Publisher("cmd_gripper", JointState, queue_size=1)
+        self._gripperopub = rospy.Publisher(
+            "/franka_gripper/joint_commands", JointState, queue_size=1
+        )
         self.bridge = CvBridge()
         self.latest_image = None
         self.image_sub = rospy.Subscriber(
             "/camera/image_raw", Image, self.image_callback, queue_size=1
         )
         self.ee_pose_sub = rospy.Subscriber(
-            "/ee_pose", PoseStamped, self.ee_pose_callback, queue_size=1
+            "/cartesian_impedance_example_controller/measured_pose",
+            PoseStamped,
+            self.ee_pose_callback,
+            queue_size=1,
         )
         # Setup reset service
         self.reset_service = rospy.Service(
@@ -41,14 +46,16 @@ class Robot:
         )
         self._action_scale = 0.005
         self.current_tip_pos = None
-        self.goal_tip_quat = np.array(
-            [
-                [9.9849617e-01, 9.4118714e-04, 5.4812428e-02, 6.6105318e-01],
-                [1.0211766e-03, -9.9999845e-01, -1.4304515e-03, -5.1778345e-04],
-                [5.4810949e-02, 1.4842749e-03, -9.9849564e-01, 1.7906836e-01],
-                [0.0000000e00, 0.0000000e00, 0.0000000e00, 1.0000000e00],
-            ]
-        )
+        self.goal_tip_quat = R.from_matrix(
+            np.array(
+                [
+                    [9.9849617e-01, 9.4118714e-04, 5.4812428e-02, 6.6105318e-01],
+                    [1.0211766e-03, -9.9999845e-01, -1.4304515e-03, -5.1778345e-04],
+                    [5.4810949e-02, 1.4842749e-03, -9.9849564e-01, 1.7906836e-01],
+                    [0.0000000e00, 0.0000000e00, 0.0000000e00, 1.0000000e00],
+                ]
+            )[:3, :3]
+        ).as_quat()
         self.start_pos = np.array([6.6105318e-01, -5.1778345e-04, 1.7906836e-01])
 
     def image_callback(self, msg):
@@ -80,18 +87,11 @@ class Robot:
         target_pose.pose.position.x = float(self.start_pos[0])
         target_pose.pose.position.y = float(self.start_pos[1])
         target_pose.pose.position.z = float(self.start_pos[2])
-
-        # Extract rotation matrix (top-left 3x3 of the matrix)
-        rotation_matrix = self.goal_tip_quat[:3, :3]
-
-        # Convert rotation matrix to quaternion
-        quat = R.from_matrix(rotation_matrix).as_quat()  # [x, y, z, w]
-
         # Set orientation from quaternion
-        target_pose.pose.orientation.x = quat[0]
-        target_pose.pose.orientation.y = quat[1]
-        target_pose.pose.orientation.z = quat[2]
-        target_pose.pose.orientation.w = quat[3]
+        target_pose.pose.orientation.x = float(self.current_tip_quat[0])
+        target_pose.pose.orientation.y = float(self.current_tip_quat[1])
+        target_pose.pose.orientation.z = float(self.current_tip_quat[2])
+        target_pose.pose.orientation.w = float(self.current_tip_quat[3])
         self._desired_ee_pose_pub.publish(target_pose)
         self._running = False
         return []
@@ -102,7 +102,9 @@ class Robot:
         dx, dy, dz in range [-1, 1], scaled by action_scale
         gripper: <0 means close, >=0 means open
         """
-
+        if self.current_tip_pos is None:
+            rospy.logwarn("Not ready yet.")
+            return
         # Scale and apply limits
         delta_pos = action[:3] * self._action_scale
         new_tip_pos = self.current_tip_pos + delta_pos
@@ -111,31 +113,26 @@ class Robot:
         new_tip_pos[0] = np.clip(new_tip_pos[0], 0.25, 0.77)
         new_tip_pos[1] = np.clip(new_tip_pos[1], -0.32, 0.32)
         new_tip_pos[2] = np.clip(new_tip_pos[2], 0.02, 0.5)
-
-        # Keep orientation fixed (e.g., downward)
-        quat = self.goal_tip_quat
-
         # Publish EE pose
         pose_msg = PoseStamped()
         pose_msg.header.frame_id = "panda_link0"
         pose_msg.header.stamp = rospy.Time.now()
-        pose_msg.pose.position.x = new_tip_pos[0]
-        pose_msg.pose.position.y = new_tip_pos[1]
-        pose_msg.pose.position.z = new_tip_pos[2]
-        pose_msg.pose.orientation.x = quat[0]
-        pose_msg.pose.orientation.y = quat[1]
-        pose_msg.pose.orientation.z = quat[2]
-        pose_msg.pose.orientation.w = quat[3]
+        pose_msg.pose.position.x = float(new_tip_pos[0])
+        pose_msg.pose.position.y = float(new_tip_pos[1])
+        pose_msg.pose.position.z = float(new_tip_pos[2])
+        pose_msg.pose.orientation.x = float(self.current_tip_quat[0])
+        pose_msg.pose.orientation.y = float(self.current_tip_quat[1])
+        pose_msg.pose.orientation.z = float(self.current_tip_quat[2])
+        pose_msg.pose.orientation.w = float(self.current_tip_quat[3])
         self._desired_ee_pose_pub.publish(pose_msg)
-
         # Gripper action
-        gripper_close = action[3] < 0  # if < 0 → close
-        gripper_pos = 0.0 if gripper_close else 1.0
+        # gripper_close = action[3] < 0  # if < 0 → close
+        # gripper_pos = 0.0 if gripper_close else 1.0
 
-        gripper_msg = JointState()
-        gripper_msg.header.stamp = rospy.Time.now()
-        gripper_msg.position = [gripper_pos]
-        self._gripper_pub.publish(gripper_msg)
+        # gripper_msg = JointState()
+        # gripper_msg.header.stamp = rospy.Time.now()
+        # gripper_msg.position = [gripper_pos]
+        # self._gripper_pub.publish(gripper_msg)
         # Update internal state (assume target reached)
         return new_tip_pos
 
