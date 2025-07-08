@@ -11,27 +11,31 @@ from scipy.spatial.transform import Rotation as R
 
 
 class Robot:
-    def __init__(self):
+    def __init__(self, init_node=False):
+        if init_node:
+            rospy.init_node("franka_emika_robot_interface")
         self._desired_ee_pose_pub = rospy.Publisher(
-            "/cmd_pose", PoseStamped, queue_size=1
+            "/cartesian_impedance_example_controller/equilibrium_pose",
+            PoseStamped,
+            queue_size=1,
         )
-        self._gripper_pub = rospy.Publisher("/cmd_gripper", JointState, queue_size=1)
+        self._gripper_pub = rospy.Publisher("cmd_gripper", JointState, queue_size=1)
         self.bridge = CvBridge()
         self.latest_image = None
         self.image_sub = rospy.Subscriber(
-            "/camera/image_raw", Image, self.image_callback
+            "/camera/image_raw", Image, self.image_callback, queue_size=1
         )
         self.ee_pose_sub = rospy.Subscriber(
-            "/ee_pose", PoseStamped, self.ee_pose_callback
+            "/ee_pose", PoseStamped, self.ee_pose_callback, queue_size=1
         )
         # Setup reset service
         self.reset_service = rospy.Service(
-            "/reset_controller",
+            "reset_controller",
             Empty,
             self.reset_service_cb,
         )
         self.start_service = rospy.Service(
-            "/start_controller",
+            "start_controller",
             SetBool,
             self.start_service_cb,
         )
@@ -69,6 +73,7 @@ class Robot:
 
     def reset_service_cb(self, req):
         """Resets the controller."""
+        rospy.loginfo("Resetting robot...")
         target_pose = PoseStamped()
         target_pose.header.frame_id = "panda_link0"
         target_pose.header.stamp = rospy.Time.now()

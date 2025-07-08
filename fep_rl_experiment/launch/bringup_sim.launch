@@ -1,0 +1,6 @@
+<launch>
+    <include file="$(find franka_gazebo)/launch/panda.launch">
+        <arg name="controller" value="cartesian_impedance_example_controller"/>
+    </include>
+    <node pkg="fep_rl_experiment" type="robot_interface.py" output="screen" name="robot_interface"/>
+</launch>
