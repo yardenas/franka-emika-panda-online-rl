@@ -83,6 +83,9 @@ class Robot:
 
     def cube_pose_callback(self, msg: PoseStamped):
         pos = msg.pose.position
+        if msg.header.frame_id != "panda_link0":
+            rospy.logerr("Cannot use the given cube pose, wrong frame.")
+            return
         self.current_cube_pos = np.array([pos.x, pos.y, pos.z])
         # Update internal orientation too if needed
         ori = msg.pose.orientation
