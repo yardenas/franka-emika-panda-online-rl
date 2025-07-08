@@ -7,8 +7,6 @@ from sensor_msgs.msg import Image
 from geometry_msgs.msg import PoseStamped
 from cv_bridge import CvBridge
 from std_srvs.srv import Empty, SetBool
-import tf2_ros
-import tf2_geometry_msgs
 from scipy.spatial.transform import Rotation as R
 
 
@@ -35,6 +33,9 @@ class Robot:
             self.ee_pose_callback,
             queue_size=1,
         )
+        self.cube_pose_sub = rospy.Subscriber(
+            "/cube_pose", PoseStamped, self.cube_pose_callback, queue_size=1
+        )
         # Setup reset service
         self.reset_service = rospy.Service(
             "reset_controller",
@@ -48,6 +49,8 @@ class Robot:
         )
         self._action_scale = 0.005
         self.current_tip_pos = None
+        self.current_cube_pos = None
+        self.current_cube_quat = None
         self.goal_tip_quat = R.from_matrix(
             np.array(
                 [
@@ -78,8 +81,21 @@ class Robot:
         ori = msg.pose.orientation
         self.current_tip_quat = np.array([ori.x, ori.y, ori.z, ori.w])
 
+    def cube_pose_callback(self, msg: PoseStamped):
+        pos = msg.pose.position
+        self.current_cube_pos = np.array([pos.x, pos.y, pos.z])
+        # Update internal orientation too if needed
+        ori = msg.pose.orientation
+        self.current_cube_quat = np.array([ori.x, ori.y, ori.z, ori.w])
+
     def get_camera_image(self) -> np.ndarray:
         return self.latest_image
+    
+    def get_cube_pos(self) -> np.ndarray:
+        return self.current_cube_pos
+
+    def get_cube_quat(self) -> np.ndarray:
+        return self.current_cube_quat
 
     def start_service_cb(self, req):
         self._running = req.data
@@ -148,32 +164,3 @@ class Robot:
     @property
     def ok(self):
         return self.current_tip_pos is not None and self.latest_image is not None
-
-
-class BoxInteractor:
-    def __init__(self):
-        self.robot = Robot()
-        self.tf_buffer = tf2_ros.Buffer()
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
-
-        # Assume pose of box published in camera frame
-        self.box_pose_sub = rospy.Subscriber(
-            "/box_pose_cam", PoseStamped, self.box_pose_callback
-        )
-        self.latest_box_pose_global = None
-
-    def box_pose_callback(self, msg: PoseStamped):
-        try:
-            # Transform pose from camera frame to base frame (e.g., panda_link0)
-            transform = self.tf_buffer.lookup_transform(
-                "panda_link0",  # target frame
-                msg.header.frame_id,  # source frame
-                rospy.Time(0),
-                rospy.Duration(1.0),
-            )
-            pose_transformed = tf2_geometry_msgs.do_transform_pose(msg, transform)
-            self.latest_box_pose_global = pose_transformed
-            rospy.loginfo(f"Box pose in base frame: {pose_transformed.pose.position}")
-
-        except Exception as e:
-            rospy.logwarn(f"Transform failed: {e}")

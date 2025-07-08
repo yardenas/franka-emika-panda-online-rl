@@ -4,4 +4,7 @@
     </include>
     <node pkg="fep_rl_experiment" type="robot_interface.py" output="screen" name="robot_interface"/>
     <node pkg="fep_rl_experiment" type="dummy_image_publisher.py" output="screen" name="image_publisher"/>
+    <node pkg="fep_rl_experiment" type="dummy_cube_publisher.py" output="screen" name="cube_publisher">
+        <remap from="pose" to="/cube_pose"/>
+    </node>
 </launch>
