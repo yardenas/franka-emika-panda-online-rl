@@ -1,33 +1,51 @@
-
 from typing import Any, NamedTuple
 import numpy as np
-import numpy.typing as npt
-from scipy.spatial.transform import Rotation as R
+from fep_rl_experiment.robot import Robot
 
-import rclpy.logging
+from typing import Dict
+
 
 class Transition(NamedTuple):
-  """Container for a transition."""
+    """Container for a transition."""
 
-  observation: Any
-  action: Any
-  reward: Any
-  discount: Any
-  next_observation: Any
-  extras: Any = ()  # pytype: disable=annotation-type-mismatch  # jax-ndarray
+    observation: Any
+    action: Any
+    reward: Any
+    discount: Any
+    next_observation: Any
+    extras: Any = ()  # pytype: disable=annotation-type-mismatch  # jax-ndarray
 
-import numpy as np
-from typing import Dict, Any
+
+_REWARD_CONFIG = {
+    "reward_scales": {
+        "gripper_box": 4.0,
+        "box_target": 8.0,
+        "no_floor_collision": 0.25,
+        "no_box_collision": 0.05,
+        "robot_target_qpos": 0.0,
+    },
+    "action_rate": -0.0005,
+    "no_soln_reward": -0.01,
+    "lifted_reward": 0.5,
+    "success_reward": 2.0,
+}
+
+_SUCCESS_THRESHOLD = 0.05
+
 
 class PandaPickCubeROS:
-    def __init__(self, robot, config: Dict[str, Any]):
+    def __init__(self, robot: Robot):
         self.robot = robot
-        self.config = config
-        self.prev_action = np.zeros(3)
         self.prev_reward = 0.0
         self.reached_box = 0.0
         self._steps = 0
         self.current_pos = self.robot.get_end_effector_pos()
+        x_plane = self.robot.goal_tip_transform[0, 3] - 0.03
+        self.target_pos = np.array([x_plane, 0.0, 0.2])
+        self.target_quat = np.array([1.0, 0.0, 0.0, 0.0])
+        # TODO (yarden): fix this
+        self.init_joint_state = np.array([])
+        self.last_reached_box = 0.0
 
     def reset(self) -> Dict[str, Any]:
         self.robot.reset_pose()
@@ -38,20 +56,9 @@ class PandaPickCubeROS:
         return obs
 
     def step(self, action: np.ndarray):
-        # 2. Reset if first step
-        newly_reset = self._steps == 0
-        if newly_reset:
-            self.prev_reward = 0.0
-            self.reached_box = 0.0
-            self.prev_action = np.zeros(3)
-            self.current_pos = self.robot.get_end_effector_pos()
-
-        # 4. Cartesian control
-        delta_pos = action[:2]  # y, z movement
-        gripper_cmd = action[2] > 0  # binary open/close
-        delta_xyz = np.array([0.0, *delta_pos])  # No x control
-        new_pos = self.robot.move_tip(delta_xyz)
-        self.robot.set_gripper(gripper_cmd)
+        # TODO (yarden): listen to e-stop and terminate
+        only_yz = np.array([0.0, *action[1:]])  # No x control
+        new_pos = self.robot.act(only_yz)
         self.current_pos = new_pos
         # 5. Rewards
         raw_rewards = self._get_reward()
@@ -59,66 +66,71 @@ class PandaPickCubeROS:
             k: v * self._config.reward_config.reward_scales[k]
             for k, v in raw_rewards.items()
         }
-        hand_box = collision.geoms_colliding(data, self._box_geom, self._hand_geom)
-        raw_rewards['no_box_collision'] = np.where(hand_box, 0.0, 1.0)
+        # FIXME (yarden): should be measured somehow
+        hand_box = False
+        raw_rewards["no_box_collision"] = np.where(hand_box, 0.0, 1.0)
         total_reward = np.clip(sum(rewards.values()), -1e4, 1e4)
-
-        # Sparse reward: check box lifted
-        lifted = self.robot.check_box_lifted()
-        if lifted:
-            reward += self.config.reward_config.lifted_reward
-            reward += self.config.reward_config.success_reward
-
+        # FIXME (yarden): figure out the frame here.
+        box_pos = self.robot.get_cube_pos(frame="world")
+        total_reward += (box_pos[2] > 0.05) * _REWARD_CONFIG["lifted_reward"]
+        success = np.linalg.norm(box_pos[2], self.target_pos) < _SUCCESS_THRESHOLD
+        total_reward += success * _REWARD_CONFIG["success_reward"]
         # Progress reward
-        reward = max(reward - self.prev_reward, 0.0)
+        reward = max(total_reward - self.prev_reward, 0.0)
         self.prev_reward = max(reward + self.prev_reward, self.prev_reward)
         # Observations
         obs = {}
-        obs['pixels/view_0'] = self.robot.get_camera_image()
-        # Done condition
-        done = lifted or self._steps >= self.config.episode_length
-        # Update step count
-        self._steps = 0 if done else self._steps + 1
-        return obs, reward, done, {
-            'lifted': lifted,
-            'steps': self._steps,
-        }
+        obs["pixels/view_0"] = self.robot.get_camera_image()
+        # TODO (yarden): measure this with estop
+        done = False
+        info = {**rewards, "reached_box": success}
+        return obs, reward, done, info
 
     def _get_reward(self, info):
-        target_pos = info["target_pos"]
-        box_pos = self.robot.box_pos
-        gripper_pos = info["gripper_pos"]
-        robot_qpos = info["robot_qpos"]
-        init_qpos = self._init_q  # initial robot joint pos stored in env
-        target_rot_quat = info["target_rot_quat"]
-        # Position error between box and target
-        pos_err = np.linalg.norm(target_pos - box_pos)
-        # Orientation error between box and target: use rotation matrix difference norm
-        box_rot_mat = R.from_quat(box_rot_quat[[1,2,3,0]]).as_matrix()  # scipy uses (x,y,z,w)
-        target_rot_mat = R.from_quat(target_rot_quat[[1,2,3,0]]).as_matrix()
-        # Compare first 6 elements as in sim (2 columns of 3x3)
-        rot_err = np.linalg.norm(target_rot_mat.ravel()[:6] - box_rot_mat.ravel()[:6])
-        box_target = 1 - np.tanh(5 * (0.9 * pos_err + 0.1 * rot_err))
-        # Distance between box and gripper
-        gripper_box_dist = np.linalg.norm(box_pos - gripper_pos)
-        gripper_box = 1 - np.tanh(5 * gripper_box_dist)
-        # Robot joint deviation from initial pose
-        robot_deviation = np.linalg.norm(robot_qpos - init_qpos)
-        robot_target_qpos = 1 - np.tanh(robot_deviation)
-        # Floor collision check — assume you have a method or flag
-        floor_collision = self.check_floor_collision()  # bool
-        no_floor_collision = 1.0 if not floor_collision else 0.0
-        # Update reached_box in info (persistent flag)
-        if "reached_box" not in info:
-            info["reached_box"] = 0.0
-        info["reached_box"] = max(
-            info["reached_box"], float(gripper_box_dist < 0.012)
+        box_pos = self.robot.get_cube_pos(frame="world")
+        # FIXME (yarden): double check that end effector pos == gripper pos
+        gripper_pos = self.robot.get_end_effector_pos()
+        pos_err = np.linalg.norm(box_pos - self.target_pos)
+        box_mat = _quat_to_mat(self.robot.get_cube_quat(frame="world"))
+        target_mat = _quat_to_mat(self.target_quat)
+        rot_err = np.linalg.norm(target_mat.ravel()[:6] - box_mat.ravel()[:6])
+        box_target = 1.0 - np.tanh(5 * (0.9 * pos_err + 0.1 * rot_err))
+        gripper_box = 1 - np.tanh(5 * np.linalg.norm(box_pos - gripper_pos))
+        qpos = self.robot.get_joint_state()
+        robot_target_qpos = 1 - np.tanh(np.linalg.norm(qpos - self.init_joint_state))
+        # FIXME (yarden): collisions
+        hand_floor_collision = 0.0
+        no_floor_collision = 1 - hand_floor_collision
+        self.last_reached_box = np.maximum(
+            self.last_reached_box, np.linalg.norm(box_pos - gripper_pos) < 0.012
         )
         rewards = {
             "gripper_box": gripper_box,
-            "box_target": box_target * info["reached_box"],
+            "box_target": box_target * self.last_reached_box,
             "no_floor_collision": no_floor_collision,
             "robot_target_qpos": robot_target_qpos,
         }
         return rewards
-            
+
+
+def _quat_to_mat(q):
+    q = np.outer(q, q)
+    return np.array(
+        [
+            [
+                q[0, 0] + q[1, 1] - q[2, 2] - q[3, 3],
+                2 * (q[1, 2] - q[0, 3]),
+                2 * (q[1, 3] + q[0, 2]),
+            ],
+            [
+                2 * (q[1, 2] + q[0, 3]),
+                q[0, 0] - q[1, 1] + q[2, 2] - q[3, 3],
+                2 * (q[2, 3] - q[0, 1]),
+            ],
+            [
+                2 * (q[1, 3] - q[0, 2]),
+                2 * (q[2, 3] + q[0, 1]),
+                q[0, 0] - q[1, 1] - q[2, 2] + q[3, 3],
+            ],
+        ]
+    )
