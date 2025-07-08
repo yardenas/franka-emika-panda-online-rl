@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 import rospy
 import numpy as np
-from sensor_msgs.msg import Image, JointState
+import actionlib
+from franka_gripper.msg import GraspActionGoal
+from sensor_msgs.msg import Image
 from geometry_msgs.msg import PoseStamped
 from cv_bridge import CvBridge
 from std_srvs.srv import Empty, SetBool
@@ -19,8 +21,8 @@ class Robot:
             PoseStamped,
             queue_size=1,
         )
-        self._gripperopub = rospy.Publisher(
-            "/franka_gripper/joint_commands", JointState, queue_size=1
+        self.grasp_publisher = rospy.Publisher(
+            "/franka_gripper/grasp/goal", GraspActionGoal, queue_size=1
         )
         self.bridge = CvBridge()
         self.latest_image = None
@@ -125,15 +127,14 @@ class Robot:
         pose_msg.pose.orientation.z = float(self.current_tip_quat[2])
         pose_msg.pose.orientation.w = float(self.current_tip_quat[3])
         self._desired_ee_pose_pub.publish(pose_msg)
-        # Gripper action
-        # gripper_close = action[3] < 0  # if < 0 → close
-        # gripper_pos = 0.0 if gripper_close else 1.0
-
-        # gripper_msg = JointState()
-        # gripper_msg.header.stamp = rospy.Time.now()
-        # gripper_msg.position = [gripper_pos]
-        # self._gripper_pub.publish(gripper_msg)
-        # Update internal state (assume target reached)
+        gripper_open = action[3] >= 0.0
+        goal = GraspActionGoal()
+        goal.goal.width = 0.06 * gripper_open
+        goal.goal.speed = 0.1
+        goal.goal.force = 20.0
+        goal.goal.epsilon.inner = 0.0
+        goal.goal.epsilon.outer = 0.0
+        self.grasp_publisher.publish(goal)
         return new_tip_pos
 
     def get_end_effector_pos(self) -> np.ndarray:
