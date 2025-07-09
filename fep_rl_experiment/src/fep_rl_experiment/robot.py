@@ -1,12 +1,12 @@
-#!/usr/bin/env python3
 import rospy
 import numpy as np
 import cv2
 from franka_gripper.msg import GraspActionGoal
-from sensor_msgs.msg import Image
+from sensor_msgs.msg import Image, JointState
 from geometry_msgs.msg import PoseStamped
 from cv_bridge import CvBridge
 from std_srvs.srv import Empty, SetBool
+import tf2_ros
 from scipy.spatial.transform import Rotation as R
 
 
@@ -36,6 +36,9 @@ class Robot:
         self.cube_pose_sub = rospy.Subscriber(
             "/cube_pose", PoseStamped, self.cube_pose_callback, queue_size=1
         )
+        self.qpos_sub = rospy.Subscriber(
+            "/joint_states", JointState, self.joint_state_callback, queue_size=1
+        )
         # Setup reset service
         self.reset_service = rospy.Service(
             "reset_controller",
@@ -49,18 +52,17 @@ class Robot:
         )
         self._action_scale = 0.005
         self.current_tip_pos = None
-        self.current_cube_pos = None
-        self.current_cube_quat = None
-        self.goal_tip_quat = R.from_matrix(
-            np.array(
-                [
-                    [9.9849617e-01, 9.4118714e-04, 5.4812428e-02, 6.6105318e-01],
-                    [1.0211766e-03, -9.9999845e-01, -1.4304515e-03, -5.1778345e-04],
-                    [5.4810949e-02, 1.4842749e-03, -9.9849564e-01, 1.7906836e-01],
-                    [0.0000000e00, 0.0000000e00, 0.0000000e00, 1.0000000e00],
-                ]
-            )[:3, :3]
-        ).as_quat()
+        self.current_cube_pose = None
+        self.joint_state = None
+        self.goal_tip_transform = np.array(
+            [
+                [9.9849617e-01, 9.4118714e-04, 5.4812428e-02, 6.6105318e-01],
+                [1.0211766e-03, -9.9999845e-01, -1.4304515e-03, -5.1778345e-04],
+                [5.4810949e-02, 1.4842749e-03, -9.9849564e-01, 1.7906836e-01],
+                [0.0000000e00, 0.0000000e00, 0.0000000e00, 1.0000000e00],
+            ]
+        )
+        self.goal_tip_quat = R.from_matrix(self.goal_tip_transform[:3, :3]).as_quat()
         self.start_pos = np.array([6.6105318e-01, -5.1778345e-04, 1.7906836e-01])
 
     def image_callback(self, msg):
@@ -82,23 +84,71 @@ class Robot:
         self.current_tip_quat = np.array([ori.x, ori.y, ori.z, ori.w])
 
     def cube_pose_callback(self, msg: PoseStamped):
-        pos = msg.pose.position
         if msg.header.frame_id != "panda_link0":
             rospy.logerr("Cannot use the given cube pose, wrong frame.")
             return
-        self.current_cube_pos = np.array([pos.x, pos.y, pos.z])
-        # Update internal orientation too if needed
-        ori = msg.pose.orientation
-        self.current_cube_quat = np.array([ori.x, ori.y, ori.z, ori.w])
+        self.current_cube_pose = msg
+
+    def joint_state_callback(self, msg: JointState):
+        self.joint_state = np.array(msg.position)
 
     def get_camera_image(self) -> np.ndarray:
         return self.latest_image
-    
-    def get_cube_pos(self) -> np.ndarray:
-        return self.current_cube_pos
 
-    def get_cube_quat(self) -> np.ndarray:
-        return self.current_cube_quat
+    def get_joint_state(self):
+        return self.joint_state
+
+    def get_cube_pos(self, frame="panda_link0") -> np.ndarray:
+        if frame == "panda_link0":
+            return np.array(
+                [
+                    self.current_cube_pose.pose.position.x,
+                    self.current_cube_pose.pose.position.y,
+                    self.current_cube_pose.pose.position.z,
+                ]
+            )
+        else:
+            try:
+                transformed_pose = self.tf_buffer.transform(
+                    self.current_cube_pose,
+                    frame,
+                    timeout=rospy.Duration(seconds=0.05),
+                )
+                pos = transformed_pose.pose.position
+                return np.array([pos.x, pos.y, pos.z])
+            except (
+                tf2_ros.LookupException,
+                tf2_ros.ExtrapolationException,
+                tf2_ros.TransformException,
+            ) as e:
+                rospy.logerr(f"Transform error in get_cube_pos: {e}")
+                return None
+
+    def get_cube_quat(self, frame="panda_link0") -> np.ndarray:
+        if frame == "panda_link0":
+            return np.array(
+                [
+                    self.current_cube_pose.pose.orientation.x,
+                    self.current_cube_pose.pose.orientation.y,
+                    self.current_cube_pose.pose.orientation.z,
+                    self.current_cube_pose.pose.orientation.w,
+                ]
+            )
+        try:
+            transformed_pose = self.tf_buffer.transform(
+                self.current_cube_pose,
+                frame,
+                timeout=rospy.Duration(seconds=0.05),
+            )
+            quat = transformed_pose.pose.position
+            return np.array([quat.x, quat.y, quat.z, quat.w])
+        except (
+            tf2_ros.LookupException,
+            tf2_ros.ExtrapolationException,
+            tf2_ros.TransformException,
+        ) as e:
+            rospy.logerr(f"Transform error in get_cube_pos: {e}")
+            return None
 
     def start_service_cb(self, req):
         self._running = req.data
