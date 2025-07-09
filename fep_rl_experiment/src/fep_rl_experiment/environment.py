@@ -39,7 +39,6 @@ class PandaPickCubeROS:
         self.robot = robot
         self.prev_reward = 0.0
         self.reached_box = 0.0
-        self._steps = 0
         self.current_pos = self.robot.get_end_effector_pos()
         x_plane = self.robot.goal_tip_transform[0, 3] - 0.03
         self.target_pos = np.array([x_plane, 0.0, 0.2])
@@ -55,11 +54,12 @@ class PandaPickCubeROS:
                 7.85010e-01,
             ]
         )
-        self.last_reached_box = 0.0
 
     def reset(self) -> Dict[str, Any]:
         self.robot.reset_service_cb(None)
-        time.sleep(5.)
+        self.prev_reward = 0.0
+        self.reached_box = 0.0
+        time.sleep(5.0)
         img = self.robot.get_camera_image()
         obs = {"pixels/view_0": img.astype(np.float32) / 255.0}
         return obs
@@ -108,12 +108,12 @@ class PandaPickCubeROS:
         # FIXME (yarden): collisions
         hand_floor_collision = 0.0
         no_floor_collision = 1 - hand_floor_collision
-        self.last_reached_box = np.maximum(
-            self.last_reached_box, np.linalg.norm(box_pos - gripper_pos) < 0.012
+        self.reached_box = np.maximum(
+            self.reached_box, np.linalg.norm(box_pos - gripper_pos) < 0.012
         )
         rewards = {
             "gripper_box": gripper_box,
-            "box_target": box_target * self.last_reached_box,
+            "box_target": box_target * self.reached_box,
             "no_floor_collision": no_floor_collision,
             "robot_target_qpos": robot_target_qpos,
         }
