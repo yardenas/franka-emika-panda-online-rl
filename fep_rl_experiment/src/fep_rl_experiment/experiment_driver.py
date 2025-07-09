@@ -1,26 +1,17 @@
 from collections import defaultdict
-from mjplayground_unitree_interfaces.msg import Transition
-from rclpy.node import Node
-from rcl_interfaces.srv import SetParameters
-from rcl_interfaces.msg import Parameter, ParameterValue, ParameterType
+import rospy
 import threading
-from crl_unitree_msgs.msg import Remote, Monitor
-from crl_fsm_msgs.msg import StateInfo
 from std_srvs.srv import Trigger
 import numpy as np
-from mjplayground_unitree_experiment.command_sampling import CommandSampler
-from mjplayground_unitree_experiment.collect_trajectory import TrajectoryCollector
-from mjplayground_unitree_experiment.transitions_server import TransitionsServer
-from mjplayground_unitree_experiment.session import Session
+from fep_rl_experiment.transitions_server import TransitionsServer
+from fep_rl_experiment.session import Session
+from fep_rl_experiment.environment import PandaPickCube
+from fep_rl_experiment.robot import Robot
 
 
-class ExperimentDriver(Node):
+class ExperimentDriver:
     def __init__(self):
-        super().__init__("joystick_publisher")
-        self.declare_parameter("trajectory_length", 80)
-        self.declare_parameter("dt", 0.05)
-        self.declare_parameter("seed", 42)
-        self.declare_parameter("session_id", "session_0")
+        rospy.init_node("franka_emika_robot_interface")
         self.dt = self.get_parameter("dt").value
         session_id = self.get_parameter("session_id").value
         self.session = Session(filename=session_id, directory="experiment_sessions")
@@ -30,31 +21,8 @@ class ExperimentDriver(Node):
         else:
             seed = num_steps
         self.trajectory_length = self.get_parameter("trajectory_length").value
-        self.trajectory_collector = TrajectoryCollector(
-            self.get_parameter("limit_scale_factor").value,
-            self.get_parameter("joint_limit_budget").value,
-            self.trajectory_length,
-        )
-        self.command_publisher = self.create_publisher(Remote, "monitor_joystick", 10)
-        self.joystick_subscriber = self.create_subscription(
-            Remote, "unitree_joystick", self.joystick_callback, 10
-        )
-        self.transitions_subscription = self.create_subscription(
-            Transition, "transition", self.trajectory_collector.transitions_callback, 10
-        )
-        self.monitor_subscription = self.create_subscription(
-            Monitor, "monitor", self.trajectory_collector.monitor_callback, 10
-        )
-        self.fsm_subscription = self.create_subscription(
-            StateInfo,
-            "FSM_node_robot_ONBOARD/state_info",
-            self.fsm_callback,
-            10,
-        )
-        self.start_service = self.create_service(
-            Trigger, "start_sampling", self.start_sampling_callback
-        )
-        self.cli = self.create_client(SetParameters, "controller/set_parameters")
+        self.robot = Robot()
+        self.env = PandaPickCube(self.robot)
         self.running = False
         self.run_id = num_steps
         self.timer = self.create_timer(self.dt, self.timer_callback)
