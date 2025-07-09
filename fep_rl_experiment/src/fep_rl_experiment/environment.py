@@ -34,7 +34,7 @@ _REWARD_CONFIG = {
 _SUCCESS_THRESHOLD = 0.05
 
 
-class PandaPickCubeROS:
+class PandaPickCube:
     def __init__(self, robot: Robot):
         self.robot = robot
         self.prev_reward = 0.0
