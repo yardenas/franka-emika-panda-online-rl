@@ -1,6 +1,14 @@
 from typing import Any, NamedTuple
 from fep_rl_experiment.environment import PandaPickCube
 
+class Transition(NamedTuple):
+  observation: Any
+  action: Any
+  reward: Any
+  discount: Any
+  next_observation: Any
+  extras: Any = ()  # pytype: disable=annotation-type-mismatch  # jax-ndarray
+
 class TrajectoryCollector:
     def __init__(self, env: PandaPickCube):
         self.current_step = 0
@@ -45,27 +53,18 @@ class TrajectoryCollector:
     def trajectory_done(self):
         return self.current_step >= self.trajectory_length or self.terminated
 
-def _make_transition(obs, ):
-    observation = {
-        "state": _make_state(msg.observation),
-        "privileged_state": _make_privileged_state(msg.observation),
-    }
-    next_observation = {
-        "state": _make_state(msg.next_observation),
-        "privileged_state": _make_privileged_state(msg.next_observation),
-    }
-    info = {kv.key: kv.value for kv in msg.info}
-    reward = msg.reward
-    # Correct reward for estops
-    if terminated and not msg.done:
-        reward -= 1
-    info["truncation"] = truncated
-    info["termination"] = -terminated
+def _make_transition(obs, action, reward, done, next_obs, info, truncation):
     return Transition(
-        observation=observation,
-        action=msg.action,
+        observation=obs,
+        action=action,
         reward=reward,
-        next_observation=next_observation,
-        done=msg.done,
-        info=info,
+        next_observation=next_obs,
+        discount=1-done,
+        extras={
+            "policy_extras": {},
+            "state_extras": {
+               "trancation":  truncation,
+               **info
+            }
+        },
     )
