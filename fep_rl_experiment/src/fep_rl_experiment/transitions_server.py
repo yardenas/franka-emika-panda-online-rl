@@ -1,9 +1,8 @@
 import pickle
 import zmq
-import rclpy
+import rospy
 import time
 import numpy as np
-import rclpy.logging
 from std_srvs.srv import Trigger
 
 _ONNX_SAVE_PATH = "./tmp_policy.onnx"
@@ -23,7 +22,7 @@ class TransitionsServer:
                     message = socket.recv()
                     policy, num_steps = pickle.loads(message)
                     if num_steps < self.experiment_driver.trajectory_length:
-                        rclpy.logging.get_logger("transitions_server").error(
+                        rospy.logging.get_logger("transitions_server").error(
                             "Invalid num_steps: {}".format(num_steps)
                         )
                     trials = self.run(policy, num_steps)
@@ -40,12 +39,12 @@ class TransitionsServer:
             if num_transitions + new_num_transitions > num_steps:
                 trial = trial[: num_steps - num_transitions]
                 trial[-1].info["truncation"] = True
-                rclpy.logging.get_logger("transitions_server").info(
+                rospy.logging.get_logger("transitions_server").info(
                     "Truncating trajectory"
                 )
             num_transitions += len(trial)
             trials.append(trial)
-            rclpy.logging.get_logger("transitions_server").info("Completed trial")
+            rospy.logging.get_logger("transitions_server").info("Completed trial")
         transitions = flatten_trajectories(trials)
         assert len(transitions[2]) == num_steps, (
             f"Expected {num_steps} transitions, got {len(transitions)}"
@@ -53,17 +52,17 @@ class TransitionsServer:
         return transitions
 
     def do_trial(self, policy):
-        rclpy.logging.get_logger("transitions_server").info("Starting sampling")
+        rospy.logging.get_logger("transitions_server").info("Starting sampling")
         if self.safe_mode:
             while not self.experiment_driver.running:
-                rclpy.logging.get_logger("transitions_server").info(
+                rospy.logging.get_logger("transitions_server").info(
                     "Waiting for command to start sampling..."
                 )
                 time.sleep(2.5)
         else:
             time.sleep(2.5)
             while not self.experiment_driver.robot_ok:
-                rclpy.logging.get_logger("transitions_server").info(
+                rospy.logging.get_logger("transitions_server").info(
                     "Waiting the robot to be ready..."
                 )
                 time.sleep(2.5)
@@ -73,7 +72,7 @@ class TransitionsServer:
             self.experiment_driver.start_sampling_callback(req, res)
         while self.experiment_driver.running:
             time.sleep(0.1)
-        rclpy.logging.get_logger("transitions_server").info("Sampling finished")
+        rospy.logging.get_logger("transitions_server").info("Sampling finished")
         trajectory = self.experiment_driver.get_trajectory()
         return trajectory
 
@@ -82,13 +81,13 @@ class TransitionsServer:
             f.write(policy)
         while True:
             while not self.experiment_driver.fsm_state == 2:
-                rclpy.logging.get_logger("transitions_server").info(
+                rospy.logging.get_logger("transitions_server").info(
                     "Waiting for robot to be in walking state..."
                 )
                 time.sleep(2.5)
             success = self.experiment_driver.update_policy(_ONNX_SAVE_PATH)
             if not success:
-                rclpy.logging.get_logger("transitions_server").error(
+                rospy.logging.get_logger("transitions_server").error(
                     "Failed to update policy"
                 )
                 time.sleep(2.5)
