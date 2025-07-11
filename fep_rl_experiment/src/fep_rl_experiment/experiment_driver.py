@@ -12,6 +12,7 @@ class ExperimentDriver:
     def __init__(self):
         rospy.init_node("franka_emika_robot_interface")
         self.dt = self.get_parameter("dt").value
+        self.trajectory_length = self.get_parameter("trajectory_length").value
         session_id = self.get_parameter("session_id").value
         self.session = Session(filename=session_id, directory="experiment_sessions")
         num_steps = len(self.session.steps)
@@ -20,21 +21,23 @@ class ExperimentDriver:
         self.running = False
         self.run_id = num_steps
         self.timer = rospy.Timer(rospy.Duration(self.dt), self.timer_callback)
-        self.transitions_server = TransitionsServer(self)
-        self.trajectory_collector = TrajectoryCollector(self.env)
+        self.transitions_server = TransitionsServer(self, safe_mode=True)
+        self.trajectory_collector = TrajectoryCollector(
+            self.env, self.trajectory_length
+        )
         self.server_thread = threading.Thread(
             target=self.transitions_server.loop, daemon=True
         )
         self.server_thread.start()
         rospy.loginfo("Experiment driver initialized.")
 
-    def start_sampling(self, trajectory_length, policy):
+    def start_sampling(self, policy):
         if self.running:
             rospy.logerr("Already running, please finish your previous run.")
             return
         rospy.loginfo(f"Starting command sampling... Run id: {self.run_id}")
         self.running = True
-        self.trajectory_collector.start(trajectory_length, policy)
+        self.trajectory_collector.start(policy)
 
     def timer_callback(self, event):
         if not self.running:

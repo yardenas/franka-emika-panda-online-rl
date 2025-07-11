@@ -13,11 +13,10 @@ class Transition(NamedTuple):
 
 
 class TrajectoryCollector:
-    def __init__(self, env: PandaPickCube):
-        self.current_step = 0
+    def __init__(self, env: PandaPickCube, trajectory_length: int):
         self.transitions = []
         self.running = False
-        self.trajectory_length = 0
+        self.trajectory_length = trajectory_length
         self.reward = 0
         self.policy = None
         self.env = env
@@ -36,16 +35,12 @@ class TrajectoryCollector:
         self.transitions.append(transition)
         self.reward += reward
         self.prev_obs = obs
-        self.current_step += 1
         self.terminated = done
 
-    def start(self, requested_length, policy):
-        self.current_step = 0
-        self.joint_limit_counter = 0
+    def start(self, policy):
         self.transitions = []
         self.terminated = False
         self.running = True
-        self.trajectory_length = requested_length
         self.reward = 0
         self.policy = policy
         rospy.loginfo("Resetting robot...")
@@ -53,12 +48,15 @@ class TrajectoryCollector:
 
     def end(self):
         self.running = False
-        self.trajectory_length = 0
         self.policy = None
 
     @property
     def trajectory_done(self):
         return self.current_step >= self.trajectory_length or self.terminated
+    
+    @property
+    def current_step(self):
+        return len(self.transitions)
 
 
 def _make_transition(obs, action, reward, done, next_obs, info, truncation):
