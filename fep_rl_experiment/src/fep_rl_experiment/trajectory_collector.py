@@ -1,24 +1,27 @@
 from typing import Any, NamedTuple
+import rospy
 from fep_rl_experiment.environment import PandaPickCube
 
+
 class Transition(NamedTuple):
-  observation: Any
-  action: Any
-  reward: Any
-  discount: Any
-  next_observation: Any
-  extras: Any = ()  # pytype: disable=annotation-type-mismatch  # jax-ndarray
+    observation: Any
+    action: Any
+    reward: Any
+    discount: Any
+    next_observation: Any
+    extras: Any = ()
+
 
 class TrajectoryCollector:
     def __init__(self, env: PandaPickCube):
         self.current_step = 0
         self.transitions = []
         self.running = False
-        self.terminated = False
         self.trajectory_length = 0
         self.reward = 0
         self.policy = None
         self.env = env
+        self.terminated = False
         self.prev_obs = None
 
     def step(self):
@@ -26,12 +29,15 @@ class TrajectoryCollector:
             return
         action = self.policy(self.prev_obs)
         obs, reward, done, info = self.env.step(action)
+        truncation = self.current_step >= self.trajectory_length and not done
+        transition = _make_transition(
+            self.prev_obs, action, reward, done, obs, info, truncation
+        )
+        self.transitions.append(transition)
+        self.reward += reward
+        self.prev_obs = obs
         self.current_step += 1
         self.terminated = done
-        self.reward += reward
-        truncation = self.current_step >= self.trajectory_length and not self.terminated
-        transition = _make_transition(msg, self.terminated, truncation)
-        self.transitions.append(transition)
 
     def start(self, requested_length, policy):
         self.current_step = 0
@@ -42,6 +48,7 @@ class TrajectoryCollector:
         self.trajectory_length = requested_length
         self.reward = 0
         self.policy = policy
+        rospy.loginfo("Resetting robot...")
         self.prev_obs = self.env.reset()
 
     def end(self):
@@ -53,18 +60,16 @@ class TrajectoryCollector:
     def trajectory_done(self):
         return self.current_step >= self.trajectory_length or self.terminated
 
+
 def _make_transition(obs, action, reward, done, next_obs, info, truncation):
     return Transition(
         observation=obs,
         action=action,
         reward=reward,
         next_observation=next_obs,
-        discount=1-done,
+        discount=1 - done,
         extras={
             "policy_extras": {},
-            "state_extras": {
-               "trancation":  truncation,
-               **info
-            }
+            "state_extras": {"trancation": truncation, **info},
         },
     )
