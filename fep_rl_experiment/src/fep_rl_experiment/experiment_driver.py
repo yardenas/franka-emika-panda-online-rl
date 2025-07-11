@@ -29,8 +29,8 @@ class ExperimentDriver:
             target=self.transitions_server.loop, daemon=True
         )
         self.server_thread.start()
-        
         rospy.loginfo("Experiment driver initialized.")
+
     def start_sampling(self, policy):
         if self.running:
             rospy.logerr("Already running, please finish your previous run.")
