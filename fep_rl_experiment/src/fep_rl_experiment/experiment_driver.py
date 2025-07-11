@@ -11,9 +11,9 @@ from fep_rl_experiment.robot import Robot
 class ExperimentDriver:
     def __init__(self):
         rospy.init_node("franka_emika_robot_interface")
-        self.dt = self.get_parameter("dt").value
-        self.trajectory_length = self.get_parameter("trajectory_length").value
-        session_id = self.get_parameter("session_id").value
+        self.dt = rospy.get_param("~dt")
+        self.trajectory_length = rospy.get_param("~trajectory_length")
+        session_id = rospy.get_param("~session_id")
         self.session = Session(filename=session_id, directory="experiment_sessions")
         num_steps = len(self.session.steps)
         self.robot = Robot()
@@ -29,8 +29,8 @@ class ExperimentDriver:
             target=self.transitions_server.loop, daemon=True
         )
         self.server_thread.start()
+        
         rospy.loginfo("Experiment driver initialized.")
-
     def start_sampling(self, policy):
         if self.running:
             rospy.logerr("Already running, please finish your previous run.")
