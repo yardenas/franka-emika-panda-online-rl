@@ -3,6 +3,8 @@ import zmq
 import rospy
 import time
 import numpy as np
+import onnxruntime as ort
+import io
 
 
 class TransitionsServer:
@@ -66,8 +68,18 @@ class TransitionsServer:
         return trajectory
 
     def parse_policy(self, policy_bytes):
-        policy_params = pickle.loads(policy_bytes)
-        return self.experiment_driver.rollout_policy_fn(policy_params, True)
+        session = ort.InferenceSession(io.BytesIO(policy_bytes).read())
+        # Get input and output names (assuming 1 input and 1 output)
+        input_name = session.get_inputs()[0].name
+        output_name = session.get_outputs()[0].name
+
+        def infer(input_array: np.ndarray) -> np.ndarray:
+            # Ensure the input is in the correct dtype
+            input_array = input_array.astype(np.float32)  # Adjust dtype if needed
+            result = session.run([output_name], {input_name: input_array})
+            return result[0]  # Return the output array
+
+        return infer
 
 
 
