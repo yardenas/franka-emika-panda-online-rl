@@ -1,14 +1,15 @@
 <launch>
-        <arg name="markerId"        default="582"/>
-        <arg name="markerSize"      default="0.034"/>    <!-- in m -->
-        <arg name="eye"             default="left"/>
-        <arg name="marker_frame"    default="aruco_marker_frame"/>
-        <arg name="ref_frame"       default=""/>  <!-- leave empty and the pose will be published wrt param parent_name -->
-        <arg name="corner_refinement" default="LINES" /> <!-- NONE, HARRIS, LINES, SUBPIX -->
-        <node pkg="aruco_ros" type="single" name="aruco_single">
+    <arg name="markerId"        default="582"/>
+    <arg name="markerSize"      default="0.034"/>    <!-- in m -->
+    <arg name="eye"             default="left"/>
+    <arg name="marker_frame"    default="aruco_marker_frame"/>
+    <arg name="ref_frame"       default=""/>  <!-- leave empty and the pose will be published wrt param parent_name -->
+    <arg name="corner_refinement" default="LINES" /> <!-- NONE, HARRIS, LINES, SUBPIX -->
+    <node pkg="aruco_ros" type="single" name="aruco_single">
         <remap from="/camera_info" to="/stereo/$(arg eye)/camera_info" />
         <remap from="/image" to="/stereo/$(arg eye)/image_rect_color" />
         <param name="image_is_rectified" value="True"/>
+        <param name="marker_size"        value="$(arg markerSize)"/>
         <param name="marker_size"        value="$(arg markerSize)"/>
         <param name="marker_id"          value="$(arg markerId)"/>
         <param name="reference_frame"    value="$(arg ref_frame)"/>   <!-- frame in which the marker pose will be refered -->
@@ -16,5 +17,12 @@
         <param name="marker_frame"       value="$(arg marker_frame)" />
         <param name="corner_refinement"  value="$(arg corner_refinement)" />
     </node>
-    <node pkg="fep_rl_experiment" type="robot_interface.py" output="screen" name="robot_interface"/>
+    <arg name="sessionId" default="training_session"/>
+    <arg name="trajectoryLength" default="80"/>
+    <arg name="dt" default="0.05"/>
+    <node pkg="fep_rl_experiment" type="online_learning.py" output="screen" name="online_learning">
+        <param name="session_id"        value="$(arg sessionId)"/>
+        <param name="trajectory_length"        value="$(arg trajectoryLength)"/>
+        <param name="dt"        value="$(arg dt)"/>
+    </node>
 </launch>

@@ -49,6 +49,7 @@ catkin_install_python(PROGRAMS
   nodes/robot_interface.py
   nodes/dummy_image_publisher.py
   nodes/dummy_cube_publisher.py
+  nodes/online_training.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 

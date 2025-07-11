@@ -2,7 +2,7 @@
 
 # Check for at least 2 arguments
 if [ $# -lt 2 ]; then
-  echo "Usage: $0 <username> <host> [session_id] [robot_type]"
+  echo "Usage: $0 <username> <host> [session_id]"
   exit 1
 fi
 
@@ -17,5 +17,5 @@ SSH_PID=$!
 # Cleanup on exit or interrupt
 trap "echo 'Terminating...'; kill $SSH_PID; exit" INT TERM EXIT
 
-# Run local ROS2 launch command with session_id
-roslaunch fep_rl_experiment sim_to_real.launch 
+# Run local ROS launch command with session_id
+roslaunch fep_rl_experiment bringup_real.launch 

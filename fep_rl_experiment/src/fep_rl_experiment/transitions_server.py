@@ -8,7 +8,7 @@ import io
 
 
 class TransitionsServer:
-    def __init__(self, experiment_driver, safe_mode=False, address="tcp://*:5555"):
+    def __init__(self, experiment_driver, safe_mode=False, address="tcp://*:5559"):
         self.experiment_driver = experiment_driver
         self.address = address
         self.safe_mode = safe_mode
