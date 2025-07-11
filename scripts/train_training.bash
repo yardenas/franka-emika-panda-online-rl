@@ -18,4 +18,4 @@ SSH_PID=$!
 trap "echo 'Terminating...'; kill $SSH_PID; exit" INT TERM EXIT
 
 # Run local ROS launch command with session_id
-roslaunch fep_rl_experiment bringup_real.launch 
+roslaunch fep_rl_experiment bringup_real.launch sessionId:=${SESSION_NAME}
