@@ -35,7 +35,7 @@ class ExperimentDriver:
         if self.running:
             rospy.logerr("Already running, please finish your previous run.")
             return
-        rospy.loginfo(f"Starting command sampling... Run id: {self.run_id}")
+        rospy.loginfo(f"Starting new data collection run... Run id: {self.run_id}")
         self.trajectory_collector.start(policy)
         self.running = True
 
