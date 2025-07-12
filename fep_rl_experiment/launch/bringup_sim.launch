@@ -9,4 +9,5 @@
     <node pkg="fep_rl_experiment" type="dummy_cube_publisher.py" output="screen" name="cube_publisher">
         <remap from="pose" to="/cube_pose"/>
     </node>
+   <node pkg="tf" type="static_transform_publisher" name="camera_link_broadcaster" args="1.176 0.001 0.483 0.65765434 0.65382486 -0.2637626 -0.26539238 panda_link0 camera_link 100"/>
 </launch>
