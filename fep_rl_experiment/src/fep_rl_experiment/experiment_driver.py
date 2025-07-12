@@ -36,8 +36,8 @@ class ExperimentDriver:
             rospy.logerr("Already running, please finish your previous run.")
             return
         rospy.loginfo(f"Starting command sampling... Run id: {self.run_id}")
-        self.running = True
         self.trajectory_collector.start(policy)
+        self.running = True
 
     def timer_callback(self, event):
         if not self.running:
