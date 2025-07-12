@@ -53,7 +53,7 @@ class TrajectoryCollector:
     @property
     def trajectory_done(self):
         return self.current_step >= self.trajectory_length or self.terminated
-    
+
     @property
     def current_step(self):
         return len(self.transitions)
@@ -66,8 +66,5 @@ def _make_transition(obs, action, reward, done, next_obs, info, truncation):
         reward=reward,
         next_observation=next_obs,
         discount=1 - done,
-        extras={
-            "policy_extras": {},
-            "state_extras": {"trancation": truncation, **info},
-        },
+        extras={"trancation": truncation, **info},
     )

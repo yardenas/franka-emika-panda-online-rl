@@ -82,8 +82,6 @@ class TransitionsServer:
         return infer
 
 
-
-
 def flatten_trajectories(trajectories):
     observations = {
         key: np.array(
@@ -105,18 +103,21 @@ def flatten_trajectories(trajectories):
         )
         for key in trajectories[0][0].next_observation
     }
-    dones = np.array([t.done for traj in trajectories for t in traj], dtype=np.float32)
-    infos = {
+    discount = np.array(
+        [t.discount for traj in trajectories for t in traj], dtype=np.float32
+    )
+    extras = {
         key: np.array(
             [t.info[key] for traj in trajectories for t in traj], dtype=np.float32
         )
-        for key in trajectories[0][0].info
+        for key in trajectories[0][0].extras
     }
+    extras = {"state_extras": extras, "policy_extras": {}}
     return (
         observations,
         actions,
         rewards,
         next_observations,
-        dones,
-        infos,
+        discount,
+        extras,
     )
