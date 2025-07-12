@@ -46,7 +46,7 @@ class ExperimentDriver:
             rospy.logwarn("Missed previous step call time.")
         self.trajectory_collector.step()
         if self.trajectory_collector.trajectory_done:
-            rospy.loginfo(f"Run {self.run_id} completed. Returning to standing mode.")
+            rospy.loginfo(f"Run {self.run_id} completed.")
             self.running = False
             self.run_id += 1
             self.summarize_trial()
