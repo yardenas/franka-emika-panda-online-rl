@@ -1,7 +1,14 @@
 <launch>
-    <include file="$(find panda_moveit_config)/launch/franka_and_rs.launch">
-        <arg name="controller" value="cartesian_impedance_example_controller"/>
-        <arg name="rviz" value="true"/>
+    <include file="$(find franka_example_controllers)/launch/cartesian_impedance_example_controller.launch">
+        <arg name="robot" value="panda"/>
+    </include>
+    <include file="$(find realsense2_camera)/launch/rs_camera.launch">
+        <arg name="enable_depth" value="false"/>
+        <arg name="color_fps" value="25"/>
+        <arg name="usb_port_id" value=""/>
+        <arg name="serial_no" value=""/>
+        <arg name="color_width" value="64"/>
+        <arg name="color_height" value="64"/>
     </include>
     <arg name="markerId"        default="582"/>
     <arg name="markerSize"      default="0.034"/>    <!-- in m -->
