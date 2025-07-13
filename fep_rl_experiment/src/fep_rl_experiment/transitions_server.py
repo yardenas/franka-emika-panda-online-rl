@@ -68,7 +68,10 @@ class TransitionsServer:
         return trajectory
 
     def parse_policy(self, policy_bytes):
-        session = ort.InferenceSession(io.BytesIO(policy_bytes).read())
+        session = ort.InferenceSession(
+            policy_bytes,
+            providers=["CUDAExecutionProvider", "CPUExecutionProvider"],
+        )
         # Get input and output names (assuming 1 input and 1 output)
         input_name = session.get_inputs()[0].name
         output_name = session.get_outputs()[0].name
