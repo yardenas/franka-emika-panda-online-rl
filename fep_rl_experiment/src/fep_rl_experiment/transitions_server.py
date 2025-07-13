@@ -62,9 +62,8 @@ class TransitionsServer:
                 rospy.loginfo("Waiting the robot to be ready...")
                 time.sleep(2.5)
             policy_fn = self.parse_policy(policy_bytes)
-            self.experiment_driver.start_sampling(policy_fn)
+            trajectory = self.experiment_driver.sample_trajectory(policy_fn)
         rospy.loginfo("Sampling finished")
-        trajectory = self.experiment_driver.get_trajectory()
         return trajectory
 
     def parse_policy(self, policy_bytes):
