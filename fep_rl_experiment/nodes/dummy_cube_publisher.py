@@ -22,7 +22,6 @@ def publish_dummy_pose():
         pose_msg.pose.orientation.w = 1.0
 
         pub.publish(pose_msg)
-        rospy.loginfo("Published dummy pose")
         rate.sleep()
 
 if __name__ == '__main__':
