@@ -238,7 +238,7 @@ class Robot:
 
 
 class LinearVelocityEstimator:
-    def __init__(self, window_size=5):
+    def __init__(self, window_size=10):
         self.window_size = window_size
         self.positions = deque(maxlen=window_size)  # List of 3D position vectors
         self.timestamps = deque(maxlen=window_size)  # Corresponding timestamps
