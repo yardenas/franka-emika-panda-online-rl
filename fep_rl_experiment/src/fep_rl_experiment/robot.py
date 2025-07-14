@@ -1,5 +1,6 @@
 import rospy
 import numpy as np
+from collections import deque
 import cv2
 from franka_gripper.msg import GraspActionGoal
 from sensor_msgs.msg import Image, JointState
@@ -64,6 +65,7 @@ class Robot:
         )
         self.goal_tip_quat = R.from_matrix(self.goal_tip_transform[:3, :3]).as_quat()
         self.start_pos = np.array([6.6105318e-01, -5.1778345e-04, 1.7906836e-01])
+        self.ee_velocity_estimator = LinearVelocityEstimator()
 
     def image_callback(self, msg):
         try:
@@ -82,6 +84,9 @@ class Robot:
         # Update internal orientation too if needed
         ori = msg.pose.orientation
         self.current_tip_quat = np.array([ori.x, ori.y, ori.z, ori.w])
+        self.ee_velocity_estimator.add_measurement(
+            self.current_tip_pos, msg.header.stamp
+        )
 
     def cube_pose_callback(self, msg: PoseStamped):
         if msg.header.frame_id != "panda_link0":
@@ -217,3 +222,39 @@ class Robot:
     @property
     def ok(self):
         return self.current_tip_pos is not None and self.latest_image is not None
+
+    @property
+    def safe(self):
+        pos = self.get_end_effector_pos()
+        out_of_bounds = np.any(np.abs(pos) > 1.0)
+        if out_of_bounds:
+            rospy.logwarn(
+                f"Robot out of bounds. Position is: {self.get_end_effector_pos()}"
+            )
+        velocity = self.ee_velocity_estimator.estimate_velocity()
+        high_velocity = np.any(np.abs(velocity) > 0.5)
+        if high_velocity:
+            rospy.logwarn(f"EE high velocity. Velocity is: {velocity}")
+
+
+class LinearVelocityEstimator:
+    def __init__(self, window_size=10):
+        self.window_size = window_size
+        self.positions = deque(maxlen=window_size)  # List of 3D position vectors
+        self.timestamps = deque(maxlen=window_size)  # Corresponding timestamps
+
+    def add_measurement(self, position, timestamp):
+        self.positions.append(np.array(position))
+        self.timestamps.append(float(timestamp))
+
+    def estimate_velocity(self):
+        if len(self.positions) < 2 or self.timestamps.std() < 1e-6:
+            return None  # Not enough data yet
+        t = np.array(self.timestamps)
+        p = np.vstack(self.positions)  # Shape: (N, 3)
+        # Normalize time to improve numerical stability
+        t_centered = t - t.mean()
+        # Solve for slope a in p = a*t + b, using least squares
+        A = t_centered[:, np.newaxis]  # Shape: (N, 1)
+        v_est, _, _, _ = np.linalg.lstsq(A, p - p.mean(axis=0), rcond=None)
+        return v_est.flatten()  # Shape: (3,)

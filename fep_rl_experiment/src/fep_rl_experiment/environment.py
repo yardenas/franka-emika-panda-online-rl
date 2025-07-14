@@ -65,7 +65,6 @@ class PandaPickCube:
         return obs
 
     def step(self, action: np.ndarray):
-        # TODO (yarden): listen to e-stop and terminate
         only_yz = np.array([0.0, *action[1:]])  # No x control
         new_pos = self.robot.act(only_yz)
         self.current_pos = new_pos
@@ -74,7 +73,6 @@ class PandaPickCube:
             k: v * self._config.reward_config.reward_scales[k]
             for k, v in raw_rewards.items()
         }
-        # FIXME (yarden): should be measured somehow
         hand_box = False
         raw_rewards["no_box_collision"] = np.where(hand_box, 0.0, 1.0)
         total_reward = np.clip(sum(rewards.values()), -1e4, 1e4)
@@ -88,8 +86,9 @@ class PandaPickCube:
         # Observations
         img = self.robot.get_camera_image()
         obs = {"pixels/view_0": img.astype(np.float32) / 255.0}
-        # TODO (yarden): measure this with estop
-        done = False
+        out_of_bounds = np.any(np.abs(box_pos) > 1.0)
+        out_of_bounds |= box_pos[2] < 0.0
+        done = out_of_bounds or not self.robot.safe
         info = {**rewards, "reached_box": success}
         return obs, reward, done, info
 
