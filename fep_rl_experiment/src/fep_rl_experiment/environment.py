@@ -88,8 +88,10 @@ class PandaPickCube:
         # Observations
         img = self.robot.get_camera_image()
         obs = {"pixels/view_0": img.astype(np.float32) / 255.0}
+        out_of_bounds = np.any(np.abs(box_pos) > 1.0)
+        out_of_bounds |= box_pos[2] < 0.0
         # TODO (yarden): measure this with estop
-        done = False
+        done = out_of_bounds
         info = {**rewards, "reached_box": success}
         return obs, reward, done, info
 
