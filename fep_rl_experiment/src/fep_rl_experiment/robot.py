@@ -221,11 +221,7 @@ class Robot:
 
     @property
     def ok(self):
-        return (
-            self.current_tip_pos is not None
-            and self.latest_image is not None
-            and self.safe
-        )
+        return self.current_tip_pos is not None and self.latest_image is not None
 
     @property
     def safe(self):

@@ -91,7 +91,7 @@ class PandaPickCube:
         out_of_bounds = np.any(np.abs(box_pos) > 1.0)
         out_of_bounds |= box_pos[2] < 0.0
         # TODO (yarden): measure this with estop
-        done = out_of_bounds
+        done = out_of_bounds or not self.robot.safe
         info = {**rewards, "reached_box": success}
         return obs, reward, done, info
 
