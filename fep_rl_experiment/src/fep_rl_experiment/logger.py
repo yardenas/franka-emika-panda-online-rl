@@ -1,5 +1,5 @@
 import csv
-import rclpy
+import rospy
 import os
 from datetime import datetime
 
@@ -16,7 +16,7 @@ class Logger:
         os.makedirs(os.path.dirname(self.full_path), exist_ok=True)
         self.headers_written = False
         self.headers = []
-        rclpy.logging.get_logger("logger").info(
+        rospy.loginfo(
             f"Logging to {os.path.abspath(self.full_path)}"
         )
 
