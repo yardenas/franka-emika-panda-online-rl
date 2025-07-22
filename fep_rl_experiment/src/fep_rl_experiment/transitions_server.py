@@ -1,4 +1,5 @@
 import pickle
+from typing import Mapping
 import zmq
 import rospy
 import time
@@ -71,13 +72,11 @@ class TransitionsServer:
             providers=["CUDAExecutionProvider", "CPUExecutionProvider"],
         )
         # Get input and output names (assuming 1 input and 1 output)
-        input_name = session.get_inputs()[0].name
         output_name = session.get_outputs()[0].name
 
-        def infer(input_array: np.ndarray) -> np.ndarray:
-            # Ensure the input is in the correct dtype
-            input_array = input_array.astype(np.float32)  # Adjust dtype if needed
-            result = session.run([output_name], {input_name: input_array})
+        def infer(inputs: Mapping[str, np.ndarray]) -> np.ndarray:
+            inputs = {k: v.astype(np.float32) for k, v in inputs.items()}
+            result = session.run([output_name], inputs)
             return result[0]  # Return the output array
 
         return infer
