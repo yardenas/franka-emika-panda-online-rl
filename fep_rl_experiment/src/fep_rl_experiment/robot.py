@@ -34,9 +34,6 @@ class Robot:
             self.ee_pose_callback,
             queue_size=1,
         )
-        self.cube_pose_sub = rospy.Subscriber(
-            "/cube_pose", PoseStamped, self.cube_pose_callback, queue_size=1
-        )
         self.qpos_sub = rospy.Subscriber(
             "/joint_states", JointState, self.joint_state_callback, queue_size=1
         )
@@ -66,6 +63,8 @@ class Robot:
         self.goal_tip_quat = R.from_matrix(self.goal_tip_transform[:3, :3]).as_quat()
         self.start_pos = np.array([6.6105318e-01, -5.1778345e-04, 1.7906836e-01])
         self.ee_velocity_estimator = LinearVelocityEstimator()
+        self.tf_buffer = tf2_ros.Buffer()
+        self.listener = tf2_ros.TransformListener(self.tf_buffer)
 
     def image_callback(self, msg):
         try:
@@ -89,12 +88,6 @@ class Robot:
             self.current_tip_pos, msg.header.stamp
         )
 
-    def cube_pose_callback(self, msg: PoseStamped):
-        if msg.header.frame_id != "panda_link0":
-            rospy.logerr("Cannot use the given cube pose, wrong frame.")
-            return
-        self.current_cube_pose = msg
-
     def joint_state_callback(self, msg: JointState):
         self.joint_state = np.array(msg.position)
 
@@ -105,55 +98,37 @@ class Robot:
         return self.joint_state
 
     def get_cube_pos(self, frame="panda_link0") -> np.ndarray:
-        if frame == "panda_link0":
-            return np.array(
-                [
-                    self.current_cube_pose.pose.position.x,
-                    self.current_cube_pose.pose.position.y,
-                    self.current_cube_pose.pose.position.z,
-                ]
-            )
-        else:
-            try:
-                transformed_pose = self.tf_buffer.transform(
-                    self.current_cube_pose,
-                    frame,
-                    timeout=rospy.Duration(seconds=0.05),
-                )
-                pos = transformed_pose.pose.position
-                return np.array([pos.x, pos.y, pos.z])
-            except (
-                tf2_ros.LookupException,
-                tf2_ros.ExtrapolationException,
-                tf2_ros.TransformException,
-            ) as e:
-                rospy.logerr(f"Transform error in get_cube_pos: {e}")
-                return None
-
-    def get_cube_quat(self, frame="panda_link0") -> np.ndarray:
-        if frame == "panda_link0":
-            return np.array(
-                [
-                    self.current_cube_pose.pose.orientation.x,
-                    self.current_cube_pose.pose.orientation.y,
-                    self.current_cube_pose.pose.orientation.z,
-                    self.current_cube_pose.pose.orientation.w,
-                ]
-            )
         try:
-            transformed_pose = self.tf_buffer.transform(
-                self.current_cube_pose,
+            transformed_pose = self.tf_buffer.lookup_transform(
+                "aruco_cube_frame",
                 frame,
                 timeout=rospy.Duration(seconds=0.05),
             )
-            quat = transformed_pose.pose.position
-            return np.array([quat.x, quat.y, quat.z, quat.w])
+            pos = transformed_pose.transform.translation
+            return np.array([pos.x, pos.y, pos.z])
         except (
             tf2_ros.LookupException,
             tf2_ros.ExtrapolationException,
             tf2_ros.TransformException,
         ) as e:
             rospy.logerr(f"Transform error in get_cube_pos: {e}")
+            return None
+
+    def get_cube_quat(self, frame="panda_link0") -> np.ndarray:
+        try:
+            transformed_pose = self.tf_buffer.lookup_transform(
+                "aruco_cube_frame",
+                frame,
+                timeout=rospy.Duration(seconds=0.05),
+            )
+            quat = transformed_pose.transform.rotation
+            return np.array([quat.x, quat.y, quat.z, quat.w])
+        except (
+            tf2_ros.LookupException,
+            tf2_ros.ExtrapolationException,
+            tf2_ros.TransformException,
+        ) as e:
+            rospy.logerr(f"Transform error in get_cube_quat: {e}")
             return None
 
     def start_service_cb(self, req):
@@ -222,7 +197,11 @@ class Robot:
 
     @property
     def ok(self):
-        return self.current_tip_pos is not None and self.latest_image is not None
+        return (
+            self.current_tip_pos is not None
+            and self.latest_image is not None
+            and self.current_cube_pose is not None
+        )
 
     @property
     def safe(self):
