@@ -101,7 +101,7 @@ class Robot:
             transformed_pose = self.tf_buffer.lookup_transform(
                 "aruco_cube_frame",
                 frame,
-                timeout=rospy.Duration(seconds=0.05),
+                timeout=rospy.Duration(sec=0.05),
             )
             pos = transformed_pose.transform.translation
             return np.array([pos.x, pos.y, pos.z])
@@ -118,7 +118,7 @@ class Robot:
             transformed_pose = self.tf_buffer.lookup_transform(
                 "aruco_cube_frame",
                 frame,
-                timeout=rospy.Duration(seconds=0.05),
+                timeout=rospy.Duration(secs=0.05),
             )
             quat = transformed_pose.transform.rotation
             return np.array([quat.x, quat.y, quat.z, quat.w])
