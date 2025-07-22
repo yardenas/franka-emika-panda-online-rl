@@ -71,6 +71,7 @@ class Robot:
         try:
             bgr_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding="bgr8")
             rgb_image = cv2.cvtColor(bgr_image, cv2.COLOR_BGR2RGB)
+            rgb_image = cv2.resize(rgb_image, (64, 64), interpolation=cv2.INTER_LINEAR)
             # Normalize to [0, 1] and convert to float32
             rgb_image_normalized = rgb_image.astype(np.float32) / 255.0
             # Now rgb_image_normalized is an RGB image with float values in [0, 1]
