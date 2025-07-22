@@ -39,7 +39,7 @@ class ExperimentDriver:
 
     def sample_trajectory(self, policy):
         rospy.loginfo(f"Starting trajectory sampling... Run id: {self.run_id}")
-        trajectory = _collect_trajectory(self.env, policy, self.episode_length, self.dt)
+        trajectory = _collect_trajectory(self.env, policy, self.trajectory_length, self.dt)
         self.summarize_trial(trajectory)
         return trajectory
 
