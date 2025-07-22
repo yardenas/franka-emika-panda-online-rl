@@ -50,7 +50,6 @@ class Robot:
         )
         self._action_scale = 0.005
         self.current_tip_pos = None
-        self.current_cube_pose = None
         self.joint_state = None
         self.goal_tip_transform = np.array(
             [
@@ -197,11 +196,7 @@ class Robot:
 
     @property
     def ok(self):
-        return (
-            self.current_tip_pos is not None
-            and self.latest_image is not None
-            and self.current_cube_pose is not None
-        )
+        return self.current_tip_pos is not None and self.latest_image is not None
 
     @property
     def safe(self):
