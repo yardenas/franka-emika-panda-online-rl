@@ -30,7 +30,6 @@ class ExperimentDriver:
         self.env = PandaPickCube(self.robot)
         self.running = False
         self.run_id = num_steps
-        self.timer = rospy.Timer(rospy.Duration(self.dt), self.timer_callback)
         self.transitions_server = TransitionsServer(self, safe_mode=True)
         self.server_thread = threading.Thread(
             target=self.transitions_server.loop, daemon=True

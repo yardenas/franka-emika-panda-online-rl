@@ -245,7 +245,7 @@ class LinearVelocityEstimator:
 
     def add_measurement(self, position, timestamp):
         self.positions.append(np.array(position))
-        self.timestamps.append(float(timestamp))
+        self.timestamps.append(float(timestamp.to_sec()))
 
     def estimate_velocity(self):
         if len(self.positions) < 2 or self.timestamps.std() < 1e-6:
