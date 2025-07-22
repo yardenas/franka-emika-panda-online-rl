@@ -77,7 +77,7 @@ class TransitionsServer:
         def infer(inputs: Mapping[str, np.ndarray]) -> np.ndarray:
             inputs = {k: v.astype(np.float32)[None] for k, v in inputs.items()}
             result = session.run([output_name], inputs)
-            return result[0]  # Return the output array
+            return result[0][0]
 
         return infer
 

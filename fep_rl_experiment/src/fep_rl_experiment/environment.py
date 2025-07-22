@@ -65,7 +65,7 @@ class PandaPickCube:
         return obs
 
     def step(self, action: np.ndarray):
-        only_yz = np.array([0.0, *action])  # No x control
+        only_yz = np.concatenate(([0.0], action))
         new_pos = self.robot.act(only_yz)
         self.current_pos = new_pos
         raw_rewards = self._get_reward()
