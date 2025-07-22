@@ -1,6 +1,6 @@
 <launch>
     <include file="$(find franka_example_controllers)/launch/cartesian_impedance_example_controller.launch">
-        <arg name="robot" value="panda"/>
+        <arg name="robot_ip" value="172.16.1.11"/>
     </include>
     <include file="$(find realsense2_camera)/launch/rs_camera.launch">
         <arg name="camera" value="camera" />
