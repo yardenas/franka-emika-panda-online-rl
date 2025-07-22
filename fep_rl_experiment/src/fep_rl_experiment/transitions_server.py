@@ -4,7 +4,6 @@ import rospy
 import time
 import numpy as np
 import onnxruntime as ort
-import io
 
 
 class TransitionsServer:
