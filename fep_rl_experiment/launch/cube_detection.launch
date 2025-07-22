@@ -1,0 +1,66 @@
+<?xml version="1.0"?>
+<launch>
+  <arg name="robot_ip" default="172.16.1.11"/>
+  <arg name="load_gripper" default = "true" />
+  <arg name="arm_id" default = "panda" />
+
+  <!-- Launch real-robot control -->
+  <include file="$(find franka_control)/launch/franka_control.launch" pass_all_args="true" />
+
+  <!-- By default use joint position controllers -->
+  <arg name="transmission" default="position" />
+  <!-- Start ROS controllers -->
+  <include file="$(find panda_moveit_config)/launch/ros_controllers.launch" pass_all_args="true" />
+
+  <!-- as well as MoveIt demo -->
+  <include file="$(find panda_moveit_config)/launch/demo.launch" pass_all_args="true">
+    <!-- robot description is loaded by franka_control.launch -->
+    <arg name="load_robot_description" value="false" />
+    <arg name="pipeline" value="ompl" />
+    <!-- MoveItSimpleControllerManager provides ros_control's JointTrajectory controllers
+         as well as GripperCommand actions -->
+    <arg name="moveit_controller_manager" value="simple" />
+  </include>
+
+  <!-- Start Realsense Camera node -->
+  <include file="$(find realsense2_camera)/launch/rs_camera.launch">
+    <arg name="camera" value="camera" />
+    <!-- <arg name="serial_no" value="841512070867" />  -->
+    <arg name="align_depth" value="true" /> 
+    <arg name="depth_width" value="640" /> 
+    <arg name="depth_height" value="480" /> 
+    <arg name="color_width" value="640" /> 
+    <arg name="color_height" value="480" /> 
+    <arg name="depth_fps" value="15" /> 
+    <arg name="color_fps" value="15" /> 
+  </include>
+
+  <!-- fill in the following parameters according to your tracking system -->
+  <arg name="markerIds"       default="571 581 591 601 611 621"/>      <!-- set your marker id -->
+  <arg name="markerSize"      default="0.042"/>    <!-- in m -->
+  <arg name="cubeSize"        default="0.05"/>    <!-- in m -->
+  <arg name="eye"             default="left"/>
+  <arg name="marker_frame"    default="aruco_marker_frame"/> 
+  <arg name="ref_frame"       default="camera_link"/>  <!-- leave empty and the pose will be published wrt param parent_name -->
+  <arg name="corner_refinement" default="LINES" /> <!-- NONE, HARRIS, LINES, SUBPIX -->    
+  <arg name="camera_frame" default="camera_color_optical_frame" />
+  <arg name="camera_image_topic" default="/camera/color/image_raw" />
+  <arg name="camera_info_topic" default="/camera/color/camera_info" /> 
+
+  <node pkg="aruco_ros" type="single" name="aruco_single">
+    <remap to="$(arg camera_info_topic)" from="/camera_info" />
+    <remap to="$(arg camera_image_topic)" from="/image" />
+    <param name="image_is_rectified" value="True"/>
+    <param name="marker_size"        value="$(arg markerSize)"/>
+    <param name="cube_size"          value="$(arg cubeSize)"/>
+    <param name="marker_ids"         value="$(arg markerIds)"/>
+    <param name="reference_frame"    value="$(arg ref_frame)"/>   <!-- frame in which the marker pose will be refered -->
+    <param name="camera_frame"       value="$(arg camera_frame)"/>
+    <param name="marker_frame"       value="$(arg marker_frame)" />
+    <param name="corner_refinement"  value="$(arg corner_refinement)" />
+  </node>
+  
+  <node pkg="tf2_ros" type="static_transform_publisher"  name="camera_link"
+    args="0.1052007131337004 -0.362021457569345 0.4078846634858508 -0.06978692995692472 0.29127019481885674 0.2774807147818239 0.9128504318570158 panda_link0 camera_link" />
+
+</launch>
