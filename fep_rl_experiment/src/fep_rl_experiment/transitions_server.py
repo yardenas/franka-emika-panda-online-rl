@@ -48,6 +48,9 @@ class TransitionsServer:
 
     def do_trial(self, policy_bytes):
         rospy.loginfo("Starting sampling")
+        while not self.experiment_driver.robot_ok:
+            rospy.loginfo("Waiting the robot to be ready...")
+            time.sleep(2.5)
         if self.safe_mode:
             while True:
                 answer = input("Press Y/y when ready to collect trajectory\n")
@@ -56,13 +59,13 @@ class TransitionsServer:
                     continue
                 else:
                     break
-        else:
-            time.sleep(2.5)
-            while not self.experiment_driver.robot_ok:
-                rospy.loginfo("Waiting the robot to be ready...")
-                time.sleep(2.5)
         policy_fn = self.parse_policy(policy_bytes)
-        trajectory = self.experiment_driver.sample_trajectory(policy_fn)
+        while True:
+            try:
+                trajectory = self.experiment_driver.sample_trajectory(policy_fn)
+                break
+            except RuntimeError:
+                rospy.logwarn("Could not sample trajectory")
         rospy.loginfo("Sampling finished")
         return trajectory
 

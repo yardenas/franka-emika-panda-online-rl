@@ -24,7 +24,6 @@ class Robot:
             "/franka_gripper/grasp/goal", GraspActionGoal, queue_size=1
         )
         self.bridge = CvBridge()
-        self.latest_image = None
         self.image_sub = rospy.Subscriber(
             "/camera/color/image_raw", Image, self.image_callback, queue_size=1
         )
@@ -51,6 +50,11 @@ class Robot:
         self._action_scale = 0.005
         self.current_tip_pos = None
         self.joint_state = None
+        self.latest_image = None
+        self.last_image_time = None
+        self.last_tip_pos_time = None
+        self.last_joint_state_time = None
+        self.last_cube_time = None
         self.goal_tip_transform = np.array(
             [
                 [9.9849617e-01, 9.4118714e-04, 5.4812428e-02, 6.6105318e-01],
@@ -65,7 +69,7 @@ class Robot:
         self.tf_buffer = tf2_ros.Buffer()
         self.listener = tf2_ros.TransformListener(self.tf_buffer)
 
-    def image_callback(self, msg):
+    def image_callback(self, msg: Image):
         try:
             bgr_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding="bgr8")
             rgb_image = cv2.cvtColor(bgr_image, cv2.COLOR_BGR2RGB)
@@ -74,6 +78,7 @@ class Robot:
             rgb_image_normalized = rgb_image.astype(np.float32) / 255.0
             # Now rgb_image_normalized is an RGB image with float values in [0, 1]
             self.latest_image = rgb_image_normalized
+            self.last_image_time = msg.header.stamp
         except Exception as e:
             rospy.logerr(f"Error converting image: {e}")
 
@@ -86,9 +91,11 @@ class Robot:
         self.ee_velocity_estimator.add_measurement(
             self.current_tip_pos, msg.header.stamp
         )
+        self.last_tip_pos_time = msg.header.stamp
 
     def joint_state_callback(self, msg: JointState):
         self.joint_state = np.array(msg.position)
+        self.last_joint_state_time = msg.header.stamp
 
     def get_camera_image(self) -> np.ndarray:
         return self.latest_image
@@ -99,11 +106,10 @@ class Robot:
     def get_cube_pos(self, frame="panda_link0") -> np.ndarray:
         try:
             transformed_pose = self.tf_buffer.lookup_transform(
-                "aruco_cube_frame",
-                frame,
-                timeout=rospy.Duration(secs=0.05),
+                "aruco_cube_frame", frame, rospy.Time(0)
             )
             pos = transformed_pose.transform.translation
+            self.last_cube_time = transformed_pose.header.stamp
             return np.array([pos.x, pos.y, pos.z])
         except (
             tf2_ros.LookupException,
@@ -116,9 +122,7 @@ class Robot:
     def get_cube_quat(self, frame="panda_link0") -> np.ndarray:
         try:
             transformed_pose = self.tf_buffer.lookup_transform(
-                "aruco_cube_frame",
-                frame,
-                timeout=rospy.Duration(secs=0.05),
+                "aruco_cube_frame", frame, rospy.Time(0)
             )
             quat = transformed_pose.transform.rotation
             return np.array([quat.x, quat.y, quat.z, quat.w])
@@ -144,10 +148,10 @@ class Robot:
         target_pose.pose.position.y = float(self.start_pos[1])
         target_pose.pose.position.z = float(self.start_pos[2])
         # Set orientation from quaternion
-        target_pose.pose.orientation.x = float(self.current_tip_quat[0])
-        target_pose.pose.orientation.y = float(self.current_tip_quat[1])
-        target_pose.pose.orientation.z = float(self.current_tip_quat[2])
-        target_pose.pose.orientation.w = float(self.current_tip_quat[3])
+        target_pose.pose.orientation.x = float(self.goal_tip_quat[0])
+        target_pose.pose.orientation.y = float(self.goal_tip_quat[1])
+        target_pose.pose.orientation.z = float(self.goal_tip_quat[2])
+        target_pose.pose.orientation.w = float(self.goal_tip_quat[3])
         self._desired_ee_pose_pub.publish(target_pose)
         self._running = False
         return []
@@ -196,7 +200,42 @@ class Robot:
 
     @property
     def ok(self):
-        return self.current_tip_pos is not None and self.latest_image is not None
+        return (
+            self.current_tip_pos is not None
+            and self.latest_image is not None
+            and self.get_cube_pos() is not None
+            and self.joint_state is not None
+        )
+
+    @property
+    def in_sync(self):
+        timestamp_dict = {
+            "last_image_time": self.last_image_time,
+            "last_tip_pos_time": self.last_tip_pos_time,
+            "last_joint_state_time": self.last_joint_state_time,
+            "last_cube_time": self.last_cube_time,
+        }
+        # Check for None values
+        for name, ts in timestamp_dict.items():
+            if ts is None:
+                rospy.logwarn(f"Timestamp '{name}' is None.")
+                return False
+        keys = list(timestamp_dict.keys())
+        max_diff = rospy.Duration.from_sec(0.1)
+        for i in range(len(keys)):
+            for j in range(i + 1, len(keys)):
+                t1_name = keys[i]
+                t2_name = keys[j]
+                t1 = timestamp_dict[t1_name]
+                t2 = timestamp_dict[t2_name]
+                diff = abs((t1 - t2).to_sec())
+                if diff > max_diff.to_sec():
+                    rospy.logwarn(
+                        f"Timestamps '{t1_name}' and '{t2_name}' differ by {diff:.6f} seconds, "
+                        f"which exceeds threshold of {max_diff.to_sec():.6f} seconds."
+                    )
+                    return False
+        return True
 
     @property
     def safe(self):

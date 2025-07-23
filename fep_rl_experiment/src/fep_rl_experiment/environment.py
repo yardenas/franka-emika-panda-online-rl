@@ -65,13 +65,18 @@ class PandaPickCube:
         return obs
 
     def step(self, action: np.ndarray):
+        count = 10
+        while not self.robot.in_sync and count > 0:
+            time.sleep(0.01)
+            count -= 1
+        if count == 0:
+            raise RuntimeError("Waited too long for sensors to arrive")
         only_yz = np.concatenate(([0.0], action))
         new_pos = self.robot.act(only_yz)
         self.current_pos = new_pos
         raw_rewards = self._get_reward()
         rewards = {
-            k: v * self._config.reward_config.reward_scales[k]
-            for k, v in raw_rewards.items()
+            k: v * _REWARD_CONFIG["reward_scales"][k] for k, v in raw_rewards.items()
         }
         hand_box = False
         raw_rewards["no_box_collision"] = np.where(hand_box, 0.0, 1.0)
