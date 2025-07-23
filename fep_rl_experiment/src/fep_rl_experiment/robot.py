@@ -270,7 +270,7 @@ class LinearVelocityEstimator:
         self.timestamps.append(float(timestamp.to_sec()))
 
     def estimate_velocity(self):
-        if len(self.positions) < 2 or self.timestamps.std() < 1e-6:
+        if len(self.positions) < 2 or np.array(self.timestamps).std() < 1e-6:
             return None  # Not enough data yet
         t = np.array(self.timestamps)
         p = np.vstack(self.positions)  # Shape: (N, 3)
