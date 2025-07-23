@@ -45,13 +45,15 @@ class PandaPickCube:
         self.target_quat = np.array([1.0, 0.0, 0.0, 0.0])
         self.init_joint_state = np.array(
             [
-                -2.00000e-05,
-                4.78040e-01,
-                -5.50000e-04,
-                -1.81309e00,
-                -1.61000e-03,
-                2.34597e00,
-                7.85010e-01,
+                2.89756246,
+                -0.44957968,
+                -2.86423491,
+                -1.80615279,
+                -0.19141916,
+                2.2858692,
+                0.91503356,
+                0.0397303,
+                0.0397303,
             ]
         )
 
@@ -65,20 +67,25 @@ class PandaPickCube:
         return obs
 
     def step(self, action: np.ndarray):
-        only_yz = np.array([0.0, *action[1:]])  # No x control
+        count = 50
+        while not self.robot.in_sync and count > 0:
+            time.sleep(0.01)
+            count -= 1
+        if count == 0:
+            raise RuntimeError("Waited too long for sensors to arrive")
+        only_yz = np.concatenate(([0.0], action))
         new_pos = self.robot.act(only_yz)
         self.current_pos = new_pos
         raw_rewards = self._get_reward()
         rewards = {
-            k: v * self._config.reward_config.reward_scales[k]
-            for k, v in raw_rewards.items()
+            k: v * _REWARD_CONFIG["reward_scales"][k] for k, v in raw_rewards.items()
         }
         hand_box = False
         raw_rewards["no_box_collision"] = np.where(hand_box, 0.0, 1.0)
         total_reward = np.clip(sum(rewards.values()), -1e4, 1e4)
         box_pos = self.robot.get_cube_pos()
         total_reward += (box_pos[2] > 0.05) * _REWARD_CONFIG["lifted_reward"]
-        success = np.linalg.norm(box_pos[2], self.target_pos) < _SUCCESS_THRESHOLD
+        success = np.linalg.norm(box_pos[2] - self.target_pos[2]) < _SUCCESS_THRESHOLD
         total_reward += success * _REWARD_CONFIG["success_reward"]
         # Progress reward
         reward = max(total_reward - self.prev_reward, 0.0)

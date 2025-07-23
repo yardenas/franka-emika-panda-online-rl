@@ -30,7 +30,6 @@ class ExperimentDriver:
         self.env = PandaPickCube(self.robot)
         self.running = False
         self.run_id = num_steps
-        self.timer = rospy.Timer(rospy.Duration(self.dt), self.timer_callback)
         self.transitions_server = TransitionsServer(self, safe_mode=True)
         self.server_thread = threading.Thread(
             target=self.transitions_server.loop, daemon=True
@@ -40,7 +39,7 @@ class ExperimentDriver:
 
     def sample_trajectory(self, policy):
         rospy.loginfo(f"Starting trajectory sampling... Run id: {self.run_id}")
-        trajectory = _collect_trajectory(self.env, policy, self.episode_length, self.dt)
+        trajectory = _collect_trajectory(self.env, policy, self.trajectory_length, self.dt)
         self.summarize_trial(trajectory)
         return trajectory
 
@@ -96,7 +95,7 @@ def _collect_trajectory(env, policy, episode_length, dt):
         if remaining > 0:
             time.sleep(remaining)
         else:
-            rospy.warn(f"Iteration took too long: {elapsed:.4f}s > dt={dt:.4f}s")
+            rospy.logwarn(f"Iteration took too long: {elapsed:.4f}s > dt={dt:.4f}s")
         obs = next_obs  # Advance observation for next step
     if not done:
         assert len(transitions) == episode_length

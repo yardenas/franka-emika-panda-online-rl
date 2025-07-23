@@ -1,5 +1,5 @@
-from mjplayground_unitree_experiment.logger import Logger
-from mjplayground_unitree_experiment.plot import RewardPlotter
+from fep_rl_experiment.logger import Logger
+from fep_rl_experiment.plot import RewardPlotter
 
 
 class Session:

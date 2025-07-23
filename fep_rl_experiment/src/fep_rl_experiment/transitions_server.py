@@ -1,10 +1,10 @@
 import pickle
+from typing import Mapping
 import zmq
 import rospy
 import time
 import numpy as np
 import onnxruntime as ort
-import io
 
 
 class TransitionsServer:
@@ -48,6 +48,9 @@ class TransitionsServer:
 
     def do_trial(self, policy_bytes):
         rospy.loginfo("Starting sampling")
+        while not self.experiment_driver.robot_ok:
+            rospy.loginfo("Waiting the robot to be ready...")
+            time.sleep(2.5)
         if self.safe_mode:
             while True:
                 answer = input("Press Y/y when ready to collect trajectory\n")
@@ -56,13 +59,13 @@ class TransitionsServer:
                     continue
                 else:
                     break
-        else:
-            time.sleep(2.5)
-            while not self.experiment_driver.robot_ok:
-                rospy.loginfo("Waiting the robot to be ready...")
-                time.sleep(2.5)
-            policy_fn = self.parse_policy(policy_bytes)
-            trajectory = self.experiment_driver.sample_trajectory(policy_fn)
+        policy_fn = self.parse_policy(policy_bytes)
+        while True:
+            try:
+                trajectory = self.experiment_driver.sample_trajectory(policy_fn)
+                break
+            except RuntimeError:
+                rospy.logwarn("Could not sample trajectory")
         rospy.loginfo("Sampling finished")
         return trajectory
 
@@ -72,14 +75,12 @@ class TransitionsServer:
             providers=["CUDAExecutionProvider", "CPUExecutionProvider"],
         )
         # Get input and output names (assuming 1 input and 1 output)
-        input_name = session.get_inputs()[0].name
         output_name = session.get_outputs()[0].name
 
-        def infer(input_array: np.ndarray) -> np.ndarray:
-            # Ensure the input is in the correct dtype
-            input_array = input_array.astype(np.float32)  # Adjust dtype if needed
-            result = session.run([output_name], {input_name: input_array})
-            return result[0]  # Return the output array
+        def infer(inputs: Mapping[str, np.ndarray]) -> np.ndarray:
+            inputs = {k: v.astype(np.float32)[None] for k, v in inputs.items()}
+            result = session.run([output_name], inputs)
+            return result[0][0]
 
         return infer
 
@@ -108,13 +109,14 @@ def flatten_trajectories(trajectories):
     discount = np.array(
         [t.discount for traj in trajectories for t in traj], dtype=np.float32
     )
-    extras = {
+    state_extras = {
         key: np.array(
-            [t.info[key] for traj in trajectories for t in traj], dtype=np.float32
+            [t.extras["state_extras"][key] for traj in trajectories for t in traj],
+            dtype=np.float32,
         )
-        for key in trajectories[0][0].extras
+        for key in trajectories[0][0].extras["state_extras"]
     }
-    extras = {"state_extras": extras, "policy_extras": {}}
+    extras = {"state_extras": state_extras, "policy_extras": {}}
     return (
         observations,
         actions,
