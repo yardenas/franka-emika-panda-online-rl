@@ -95,7 +95,7 @@ def _collect_trajectory(env, policy, episode_length, dt):
         if remaining > 0:
             time.sleep(remaining)
         else:
-            rospy.warn(f"Iteration took too long: {elapsed:.4f}s > dt={dt:.4f}s")
+            rospy.logwarn(f"Iteration took too long: {elapsed:.4f}s > dt={dt:.4f}s")
         obs = next_obs  # Advance observation for next step
     if not done:
         assert len(transitions) == episode_length
