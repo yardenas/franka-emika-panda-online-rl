@@ -200,12 +200,20 @@ class Robot:
 
     @property
     def ok(self):
-        return (
-            self.current_tip_pos is not None
-            and self.latest_image is not None
-            and self.get_cube_pos() is not None
-            and self.joint_state is not None
-        )
+        ready = True
+        if self.current_tip_pos is None:
+            rospy.logwarn("current_tip_pos is None")
+            ready = False
+        if self.latest_image is None:
+            rospy.logwarn("latest_image is None")
+            ready = False
+        if self.get_cube_pos() is None:
+            rospy.logwarn("get_cube_pos() returned None")
+            ready = False
+        if self.joint_state is None:
+            rospy.logwarn("joint_state is None")
+            ready = False
+        return ready
 
     @property
     def in_sync(self):
