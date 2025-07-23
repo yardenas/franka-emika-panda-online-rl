@@ -67,7 +67,7 @@ class PandaPickCube:
         return obs
 
     def step(self, action: np.ndarray):
-        count = 10
+        count = 50
         while not self.robot.in_sync and count > 0:
             time.sleep(0.01)
             count -= 1

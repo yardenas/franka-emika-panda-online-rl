@@ -229,7 +229,7 @@ class Robot:
                 rospy.logwarn(f"Timestamp '{name}' is None.")
                 return False
         keys = list(timestamp_dict.keys())
-        max_diff = rospy.Duration.from_sec(0.1)
+        max_diff = rospy.Duration.from_sec(0.15)
         for i in range(len(keys)):
             for j in range(i + 1, len(keys)):
                 t1_name = keys[i]
