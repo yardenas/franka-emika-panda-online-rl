@@ -257,6 +257,7 @@ class Robot:
         high_velocity = np.any(np.abs(velocity) > 0.5)
         if high_velocity:
             rospy.logwarn(f"EE high velocity. Velocity is: {velocity}")
+        return not out_of_bounds and not high_velocity
 
 
 class LinearVelocityEstimator:
