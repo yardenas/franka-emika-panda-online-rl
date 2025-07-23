@@ -85,7 +85,7 @@ class PandaPickCube:
         total_reward = np.clip(sum(rewards.values()), -1e4, 1e4)
         box_pos = self.robot.get_cube_pos()
         total_reward += (box_pos[2] > 0.05) * _REWARD_CONFIG["lifted_reward"]
-        success = np.linalg.norm(box_pos[2], self.target_pos[2]) < _SUCCESS_THRESHOLD
+        success = np.linalg.norm(box_pos[2] - self.target_pos[2]) < _SUCCESS_THRESHOLD
         total_reward += success * _REWARD_CONFIG["success_reward"]
         # Progress reward
         reward = max(total_reward - self.prev_reward, 0.0)
