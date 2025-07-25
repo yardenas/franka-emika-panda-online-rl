@@ -39,7 +39,6 @@ class PandaPickCube:
         self.robot = robot
         self.prev_reward = 0.0
         self.reached_box = 0.0
-        self.current_pos = self.robot.get_end_effector_pos()
         x_plane = self.robot.goal_tip_transform[0, 3] - 0.03
         self.target_pos = np.array([x_plane, 0.0, 0.2])
         self.target_quat = np.array([1.0, 0.0, 0.0, 0.0])
@@ -76,8 +75,7 @@ class PandaPickCube:
         if count == 0:
             raise RuntimeError("Waited too long for sensors to arrive")
         only_yz = np.concatenate(([0.0], action))
-        new_pos = self.robot.act(only_yz)
-        self.current_pos = new_pos
+        self.robot.act(only_yz)
         raw_rewards = self._get_reward()
         rewards = {
             k: v * _REWARD_CONFIG["reward_scales"][k] for k, v in raw_rewards.items()
