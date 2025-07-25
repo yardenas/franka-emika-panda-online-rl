@@ -144,13 +144,11 @@ class Robot:
     def reset_service_cb(self, req):
         """Resets the controller."""
         rospy.loginfo("Resetting robot...")
-        goal = GraspActionGoal()
+        goal = MoveActionGoal()
         goal.goal.width = 0.06
         goal.goal.speed = 0.1
-        goal.goal.force = 20.0
-        goal.goal.epsilon.inner = 0.0
-        goal.goal.epsilon.outer = 0.0
-        self.grasp_publisher.publish(goal)
+        goal.goal = 10.0
+        self.move_publisher.publish(goal)
         target_pose = PoseStamped()
         target_pose.header.frame_id = "panda_link0"
         target_pose.header.stamp = rospy.Time.now()
