@@ -77,10 +77,8 @@ class Robot:
             bgr_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding="bgr8")
             rgb_image = cv2.cvtColor(bgr_image, cv2.COLOR_BGR2RGB)
             rgb_image = cv2.resize(rgb_image, (64, 64), interpolation=cv2.INTER_LINEAR)
-            # Normalize to [0, 1] and convert to float32
-            rgb_image_normalized = rgb_image.astype(np.float32) / 255.0
-            # Now rgb_image_normalized is an RGB image with float values in [0, 1]
-            self.latest_image = rgb_image_normalized
+            image = _preprocess_image(rgb_image)
+            self.latest_image = image
             self.last_image_time = msg.header.stamp
         except Exception as e:
             rospy.logerr(f"Error converting image: {e}")
@@ -146,7 +144,7 @@ class Robot:
         rospy.loginfo("Resetting robot...")
         goal = MoveActionGoal()
         goal.goal.width = 0.06
-        goal.goal.speed = 10.
+        goal.goal.speed = 10.0
         self.move_publisher.publish(goal)
         target_pose = PoseStamped()
         target_pose.header.frame_id = "panda_link0"
@@ -203,7 +201,7 @@ class Robot:
         else:
             goal = MoveActionGoal()
             goal.goal.width = 0.06
-            goal.goal.speed = 10.
+            goal.goal.speed = 10.0
             self.move_publisher.publish(goal)
         return new_tip_pos
 
@@ -293,3 +291,45 @@ class LinearVelocityEstimator:
         A = t_centered[:, np.newaxis]  # Shape: (N, 1)
         v_est, _, _, _ = np.linalg.lstsq(A, p - p.mean(axis=0), rcond=None)
         return v_est.flatten()  # Shape: (3,)
+
+
+def _preprocess_image(rgb_image):
+    crop_top = 100  # pixels to crop from the top
+    crop_bottom = 20  # pixels to crop from the bottom
+    crop_left = 250  # optional: pixels from the left
+    crop_right = 250  # optional: pixels from the right
+    height, width, _ = rgb_image.shape
+    # Ensure you don't go out of bounds
+    rgb_image = rgb_image[
+        crop_top : height - crop_bottom, crop_left : width - crop_right
+    ]
+    rgb_image = cv2.resize(rgb_image, (64, 64), interpolation=cv2.INTER_LINEAR)
+    out = _mask_colors(rgb_image)
+    # Normalize to [0, 1] and convert to float32
+    rgb_image_normalized = out.astype(np.float32) / 255.0
+    return rgb_image_normalized
+
+
+def _mask_colors(rgb_image):
+    image_hsv = cv2.cvtColor(rgb_image, cv2.COLOR_BGR2HSV)
+    # --- Red Mask ---
+    lower_red1 = np.array([0, 100, 100])
+    upper_red1 = np.array([10, 255, 255])
+    lower_red2 = np.array([160, 100, 100])
+    upper_red2 = np.array([180, 255, 255])
+    mask_red = cv2.inRange(image_hsv, lower_red1, upper_red1) | cv2.inRange(
+        image_hsv, lower_red2, upper_red2
+    )
+    # --- White Mask ---
+    lower_white = np.array([0, 0, 200])
+    upper_white = np.array([180, 30, 255])
+    mask_white = cv2.inRange(image_hsv, lower_white, upper_white)
+    # --- Black Mask ---
+    lower_black = np.array([0, 0, 0])
+    upper_black = np.array([180, 255, 50])
+    mask_black = cv2.inRange(image_hsv, lower_black, upper_black)
+    # Combine masks or use individually
+    segmented = cv2.bitwise_and(
+        rgb_image, rgb_image, mask=mask_red + mask_white + mask_black
+    )
+    return segmented
