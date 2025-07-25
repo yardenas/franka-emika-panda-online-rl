@@ -344,5 +344,5 @@ def _mask_colors(rgb_image):
     segmented = cv2.bitwise_and(
         rgb_image, rgb_image, mask=mask_red | mask_white | mask_black
     )
-    segmented[mask_black] = [0, 0, 0]
+    segmented[mask_black > 0] = [0, 0, 0]
     return segmented
