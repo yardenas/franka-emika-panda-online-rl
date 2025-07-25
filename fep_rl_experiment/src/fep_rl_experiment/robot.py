@@ -325,10 +325,10 @@ def _mask_colors(rgb_image):
         image_hsv, lower_red2, upper_red2
     )
     # --- White Mask ---
-    lower_white = np.array([0, 0, 200])
-    upper_white = np.array([180, 30, 255])
+    lower_white = np.array([0, 0, 170])
+    upper_white = np.array([180, 60, 255])
     mask_white = cv2.inRange(image_hsv, lower_white, upper_white)
-    kernel = np.ones((10, 10), np.uint8)
+    kernel = np.ones((3, 3), np.uint8)
     mask_white = cv2.dilate(mask_white, kernel, iterations=1)
     # --- Black Mask ---
     lower_black = np.array([0, 0, 0])
@@ -338,4 +338,5 @@ def _mask_colors(rgb_image):
     segmented = cv2.bitwise_and(
         rgb_image, rgb_image, mask=mask_red | mask_white | mask_black
     )
+    segmented[mask_black] = [0, 0, 0]
     return segmented
