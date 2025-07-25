@@ -76,7 +76,6 @@ class Robot:
         try:
             bgr_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding="bgr8")
             rgb_image = cv2.cvtColor(bgr_image, cv2.COLOR_BGR2RGB)
-            rgb_image = cv2.resize(rgb_image, (64, 64), interpolation=cv2.INTER_LINEAR)
             image = _preprocess_image(rgb_image)
             self.latest_image = image
             self.last_image_time = msg.header.stamp
@@ -293,7 +292,7 @@ class LinearVelocityEstimator:
         return v_est.flatten()  # Shape: (3,)
 
 
-def _preprocess_image(rgb_image):
+def _crop_and_resize(rgb_image):
     crop_top = 100  # pixels to crop from the top
     crop_bottom = 20  # pixels to crop from the bottom
     crop_left = 250  # optional: pixels from the left
@@ -304,6 +303,11 @@ def _preprocess_image(rgb_image):
         crop_top : height - crop_bottom, crop_left : width - crop_right
     ]
     rgb_image = cv2.resize(rgb_image, (64, 64), interpolation=cv2.INTER_LINEAR)
+    return rgb_image
+
+
+def _preprocess_image(rgb_image):
+    rgb_image = _crop_and_resize(rgb_image)
     out = _mask_colors(rgb_image)
     # Normalize to [0, 1] and convert to float32
     rgb_image_normalized = out.astype(np.float32) / 255.0
@@ -311,7 +315,7 @@ def _preprocess_image(rgb_image):
 
 
 def _mask_colors(rgb_image):
-    image_hsv = cv2.cvtColor(rgb_image, cv2.COLOR_BGR2HSV)
+    image_hsv = cv2.cvtColor(rgb_image, cv2.COLOR_RGB2HSV)
     # --- Red Mask ---
     lower_red1 = np.array([0, 100, 100])
     upper_red1 = np.array([10, 255, 255])
@@ -324,12 +328,14 @@ def _mask_colors(rgb_image):
     lower_white = np.array([0, 0, 200])
     upper_white = np.array([180, 30, 255])
     mask_white = cv2.inRange(image_hsv, lower_white, upper_white)
+    kernel = np.ones((10, 10), np.uint8)
+    mask_white = cv2.dilate(mask_white, kernel, iterations=1)
     # --- Black Mask ---
     lower_black = np.array([0, 0, 0])
     upper_black = np.array([180, 255, 50])
     mask_black = cv2.inRange(image_hsv, lower_black, upper_black)
     # Combine masks or use individually
     segmented = cv2.bitwise_and(
-        rgb_image, rgb_image, mask=mask_red + mask_white + mask_black
+        rgb_image, rgb_image, mask=mask_red | mask_white | mask_black
     )
     return segmented
