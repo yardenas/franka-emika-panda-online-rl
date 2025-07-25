@@ -30,6 +30,7 @@ class Robot:
         self.image_sub = rospy.Subscriber(
             "/camera/color/image_raw", Image, self.image_callback, queue_size=1
         )
+        self.image_pub = rospy.Publisher("processed_image", Image, queue_size=1)
         self.ee_pose_sub = rospy.Subscriber(
             "/cartesian_impedance_example_controller/measured_pose",
             PoseStamped,
@@ -79,6 +80,11 @@ class Robot:
             image = _preprocess_image(rgb_image)
             self.latest_image = image
             self.last_image_time = msg.header.stamp
+            output_msg = self.bridge.cv2_to_imgmsg(
+                (image * 255).astype(np.uint8), encoding="rgb8"
+            )
+            output_msg.header.stamp = rospy.Time.now()  # Optional: add timestamp
+            self.image_pub.publish(output_msg)
         except Exception as e:
             rospy.logerr(f"Error converting image: {e}")
 
