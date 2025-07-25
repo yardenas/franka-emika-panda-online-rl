@@ -146,8 +146,7 @@ class Robot:
         rospy.loginfo("Resetting robot...")
         goal = MoveActionGoal()
         goal.goal.width = 0.06
-        goal.goal.speed = 0.1
-        goal.goal = 10.0
+        goal.goal.speed = 10.
         self.move_publisher.publish(goal)
         target_pose = PoseStamped()
         target_pose.header.frame_id = "panda_link0"
@@ -204,8 +203,7 @@ class Robot:
         else:
             goal = MoveActionGoal()
             goal.goal.width = 0.06
-            goal.goal.speed = 0.1
-            goal.goal = 10.0
+            goal.goal.speed = 10.
             self.move_publisher.publish(goal)
         return new_tip_pos
 
