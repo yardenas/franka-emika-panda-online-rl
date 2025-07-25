@@ -196,17 +196,14 @@ class Robot:
         pose_msg.pose.orientation.w = float(self.goal_tip_quat[3])
         self._desired_ee_pose_pub.publish(pose_msg)
         if action[3] >= 0.0:
-            goal = GraspActionGoal()
-            goal.goal.width = 0.04
-            goal.goal.speed = 0.1
-            goal.goal.force = 20.0
-            goal.goal.epsilon.inner = 0.04
-            goal.goal.epsilon.outer = 0.04
-            self.grasp_publisher.publish(goal)
-        else:
             goal = MoveActionGoal()
             goal.goal.width = 0.06
-            goal.goal.speed = 10.0
+            goal.goal.speed = 0.4
+            self.move_publisher.publish(goal)
+        else:
+            goal = MoveActionGoal()
+            goal.goal.width = 0.00
+            goal.goal.speed = 0.4
             self.move_publisher.publish(goal)
         return new_tip_pos
 

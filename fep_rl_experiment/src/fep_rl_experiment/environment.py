@@ -113,8 +113,7 @@ class PandaPickCube:
         gripper_box = 1 - np.tanh(5 * np.linalg.norm(box_pos - gripper_pos))
         qpos = self.robot.get_joint_state()
         robot_target_qpos = 1 - np.tanh(np.linalg.norm(qpos - self.init_joint_state))
-        # FIXME (yarden): collisions
-        hand_floor_collision = 0.0
+        hand_floor_collision = gripper_pos[-1] < 0.01
         no_floor_collision = 1 - hand_floor_collision
         self.reached_box = np.maximum(
             self.reached_box, np.linalg.norm(box_pos - gripper_pos) < 0.012
