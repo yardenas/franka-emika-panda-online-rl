@@ -2,7 +2,7 @@ import rospy
 import numpy as np
 from collections import deque
 import cv2
-from franka_gripper.msg import GraspActionGoal
+from franka_gripper.msg import GraspActionGoal, MoveActionGoal
 from sensor_msgs.msg import Image, JointState
 from geometry_msgs.msg import PoseStamped
 from cv_bridge import CvBridge
@@ -22,6 +22,9 @@ class Robot:
         )
         self.grasp_publisher = rospy.Publisher(
             "/franka_gripper/grasp/goal", GraspActionGoal, queue_size=1
+        )
+        self.move_publisher = rospy.Publisher(
+            "/franka_gripper/move/goal", MoveActionGoal, queue_size=1
         )
         self.bridge = CvBridge()
         self.image_sub = rospy.Subscriber(
@@ -192,14 +195,20 @@ class Robot:
         pose_msg.pose.orientation.z = float(self.current_tip_quat[2])
         pose_msg.pose.orientation.w = float(self.current_tip_quat[3])
         self._desired_ee_pose_pub.publish(pose_msg)
-        gripper_open = action[3] >= 0.0
-        goal = GraspActionGoal()
-        goal.goal.width = 0.06 * gripper_open
-        goal.goal.speed = 0.1
-        goal.goal.force = 20.0
-        goal.goal.epsilon.inner = 0.0
-        goal.goal.epsilon.outer = 0.0
-        self.grasp_publisher.publish(goal)
+        if action[3] >= 0.0:
+            goal = GraspActionGoal()
+            goal.goal.width = 0.04
+            goal.goal.speed = 0.1
+            goal.goal.force = 20.0
+            goal.goal.epsilon.inner = 0.04
+            goal.goal.epsilon.outer = 0.04
+            self.grasp_publisher.publish(goal)
+        else:
+            goal = MoveActionGoal()
+            goal.goal.width = 0.06
+            goal.goal.speed = 0.1
+            goal.goal = 10.0
+            self.move_publisher.publish(goal)
         return new_tip_pos
 
     def get_end_effector_pos(self) -> np.ndarray:
