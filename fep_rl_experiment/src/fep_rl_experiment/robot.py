@@ -232,6 +232,8 @@ class Robot:
 
     @property
     def in_sync(self):
+        # FIXME (yarden)
+        return True
         timestamp_dict = {
             "last_image_time": self.last_image_time,
             "last_tip_pos_time": self.last_tip_pos_time,
