@@ -30,6 +30,7 @@ class Robot:
         self.image_sub = rospy.Subscriber(
             "/camera/color/image_raw", Image, self.image_callback, queue_size=1
         )
+        self.image_pub = rospy.Publisher("processed_image", Image, queue_size=1)
         self.ee_pose_sub = rospy.Subscriber(
             "/cartesian_impedance_example_controller/measured_pose",
             PoseStamped,
@@ -66,8 +67,8 @@ class Robot:
                 [0.0000000e00, 0.0000000e00, 0.0000000e00, 1.0000000e00],
             ]
         )
-        self.goal_tip_quat = R.from_matrix(self.goal_tip_transform[:3, :3]).as_quat()
-        self.start_pos = np.array([6.6105318e-01, -5.1778345e-04, 1.7906836e-01])
+        self.goal_tip_quat = np.array([-1.0, 0.0, 0.0, 0.0])
+        self.start_pos = np.array([0.55, -5.1778345e-04, 1.7906836e-01])
         self.ee_velocity_estimator = LinearVelocityEstimator()
         self.tf_buffer = tf2_ros.Buffer()
         self.listener = tf2_ros.TransformListener(self.tf_buffer)
@@ -76,12 +77,14 @@ class Robot:
         try:
             bgr_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding="bgr8")
             rgb_image = cv2.cvtColor(bgr_image, cv2.COLOR_BGR2RGB)
-            rgb_image = cv2.resize(rgb_image, (64, 64), interpolation=cv2.INTER_LINEAR)
-            # Normalize to [0, 1] and convert to float32
-            rgb_image_normalized = rgb_image.astype(np.float32) / 255.0
-            # Now rgb_image_normalized is an RGB image with float values in [0, 1]
-            self.latest_image = rgb_image_normalized
+            image = _preprocess_image(rgb_image)
+            self.latest_image = image
             self.last_image_time = msg.header.stamp
+            output_msg = self.bridge.cv2_to_imgmsg(
+                (image * 255).astype(np.uint8), encoding="rgb8"
+            )
+            output_msg.header.stamp = rospy.Time.now()  # Optional: add timestamp
+            self.image_pub.publish(output_msg)
         except Exception as e:
             rospy.logerr(f"Error converting image: {e}")
 
@@ -146,7 +149,7 @@ class Robot:
         rospy.loginfo("Resetting robot...")
         goal = MoveActionGoal()
         goal.goal.width = 0.06
-        goal.goal.speed = 10.
+        goal.goal.speed = 10.0
         self.move_publisher.publish(goal)
         target_pose = PoseStamped()
         target_pose.header.frame_id = "panda_link0"
@@ -187,23 +190,20 @@ class Robot:
         pose_msg.pose.position.x = float(new_tip_pos[0])
         pose_msg.pose.position.y = float(new_tip_pos[1])
         pose_msg.pose.position.z = float(new_tip_pos[2])
-        pose_msg.pose.orientation.x = float(self.current_tip_quat[0])
-        pose_msg.pose.orientation.y = float(self.current_tip_quat[1])
-        pose_msg.pose.orientation.z = float(self.current_tip_quat[2])
-        pose_msg.pose.orientation.w = float(self.current_tip_quat[3])
+        pose_msg.pose.orientation.x = float(self.goal_tip_quat[0])
+        pose_msg.pose.orientation.y = float(self.goal_tip_quat[1])
+        pose_msg.pose.orientation.z = float(self.goal_tip_quat[2])
+        pose_msg.pose.orientation.w = float(self.goal_tip_quat[3])
         self._desired_ee_pose_pub.publish(pose_msg)
         if action[3] >= 0.0:
-            goal = GraspActionGoal()
-            goal.goal.width = 0.04
-            goal.goal.speed = 0.1
-            goal.goal.force = 20.0
-            goal.goal.epsilon.inner = 0.04
-            goal.goal.epsilon.outer = 0.04
-            self.grasp_publisher.publish(goal)
-        else:
             goal = MoveActionGoal()
             goal.goal.width = 0.06
-            goal.goal.speed = 10.
+            goal.goal.speed = 0.4
+            self.move_publisher.publish(goal)
+        else:
+            goal = MoveActionGoal()
+            goal.goal.width = 0.00
+            goal.goal.speed = 0.4
             self.move_publisher.publish(goal)
         return new_tip_pos
 
@@ -229,6 +229,8 @@ class Robot:
 
     @property
     def in_sync(self):
+        # FIXME (yarden)
+        return True
         timestamp_dict = {
             "last_image_time": self.last_image_time,
             "last_tip_pos_time": self.last_tip_pos_time,
@@ -293,3 +295,53 @@ class LinearVelocityEstimator:
         A = t_centered[:, np.newaxis]  # Shape: (N, 1)
         v_est, _, _, _ = np.linalg.lstsq(A, p - p.mean(axis=0), rcond=None)
         return v_est.flatten()  # Shape: (3,)
+
+
+def _crop_and_resize(rgb_image):
+    crop_top = 100  # pixels to crop from the top
+    crop_bottom = 20  # pixels to crop from the bottom
+    crop_left = 250  # optional: pixels from the left
+    crop_right = 250  # optional: pixels from the right
+    height, width, _ = rgb_image.shape
+    # Ensure you don't go out of bounds
+    rgb_image = rgb_image[
+        crop_top : height - crop_bottom, crop_left : width - crop_right
+    ]
+    rgb_image = cv2.resize(rgb_image, (64, 64), interpolation=cv2.INTER_LINEAR)
+    return rgb_image
+
+
+def _preprocess_image(rgb_image):
+    rgb_image = _crop_and_resize(rgb_image)
+    out = _mask_colors(rgb_image)
+    # Normalize to [0, 1] and convert to float32
+    rgb_image_normalized = out.astype(np.float32) / 255.0
+    return rgb_image_normalized
+
+
+def _mask_colors(rgb_image):
+    image_hsv = cv2.cvtColor(rgb_image, cv2.COLOR_RGB2HSV)
+    # --- Red Mask ---
+    lower_red1 = np.array([0, 100, 100])
+    upper_red1 = np.array([10, 255, 255])
+    lower_red2 = np.array([160, 100, 100])
+    upper_red2 = np.array([180, 255, 255])
+    mask_red = cv2.inRange(image_hsv, lower_red1, upper_red1) | cv2.inRange(
+        image_hsv, lower_red2, upper_red2
+    )
+    # --- White Mask ---
+    lower_white = np.array([0, 0, 170])
+    upper_white = np.array([180, 60, 255])
+    mask_white = cv2.inRange(image_hsv, lower_white, upper_white)
+    kernel = np.ones((3, 3), np.uint8)
+    mask_white = cv2.dilate(mask_white, kernel, iterations=1)
+    # --- Black Mask ---
+    lower_black = np.array([0, 0, 0])
+    upper_black = np.array([180, 255, 50])
+    mask_black = cv2.inRange(image_hsv, lower_black, upper_black)
+    # Combine masks or use individually
+    segmented = cv2.bitwise_and(
+        rgb_image, rgb_image, mask=mask_red | mask_white | mask_black
+    )
+    segmented[mask_black > 0] = [0, 0, 0]
+    return segmented

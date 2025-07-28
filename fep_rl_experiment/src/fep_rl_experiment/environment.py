@@ -39,7 +39,6 @@ class PandaPickCube:
         self.robot = robot
         self.prev_reward = 0.0
         self.reached_box = 0.0
-        self.current_pos = self.robot.get_end_effector_pos()
         x_plane = self.robot.goal_tip_transform[0, 3] - 0.03
         self.target_pos = np.array([x_plane, 0.0, 0.2])
         self.target_quat = np.array([1.0, 0.0, 0.0, 0.0])
@@ -65,7 +64,7 @@ class PandaPickCube:
         self.reached_box = 0.0
         time.sleep(5.0)
         img = self.robot.get_camera_image()
-        obs = {"pixels/view_0": img.astype(np.float32) / 255.0}
+        obs = {"pixels/view_0": img}
         return obs
 
     def step(self, action: np.ndarray):
@@ -76,8 +75,7 @@ class PandaPickCube:
         if count == 0:
             raise RuntimeError("Waited too long for sensors to arrive")
         only_yz = np.concatenate(([0.0], action))
-        new_pos = self.robot.act(only_yz)
-        self.current_pos = new_pos
+        self.robot.act(only_yz)
         raw_rewards = self._get_reward()
         rewards = {
             k: v * _REWARD_CONFIG["reward_scales"][k] for k, v in raw_rewards.items()
@@ -94,9 +92,11 @@ class PandaPickCube:
         self.prev_reward = max(reward + self.prev_reward, self.prev_reward)
         # Observations
         img = self.robot.get_camera_image()
-        obs = {"pixels/view_0": img.astype(np.float32) / 255.0}
+        obs = {"pixels/view_0": img}
         out_of_bounds = np.any(np.abs(box_pos) > 1.0)
         out_of_bounds |= box_pos[2] < 0.0
+        # FIXME (yarden): this should be corrected
+        out_of_bounds = False
         done = out_of_bounds or not self.robot.safe
         info = {**rewards, "reached_box": success}
         return obs, reward, done, info
@@ -113,8 +113,7 @@ class PandaPickCube:
         gripper_box = 1 - np.tanh(5 * np.linalg.norm(box_pos - gripper_pos))
         qpos = self.robot.get_joint_state()
         robot_target_qpos = 1 - np.tanh(np.linalg.norm(qpos - self.init_joint_state))
-        # FIXME (yarden): collisions
-        hand_floor_collision = 0.0
+        hand_floor_collision = gripper_pos[-1] < 0.01
         no_floor_collision = 1 - hand_floor_collision
         self.reached_box = np.maximum(
             self.reached_box, np.linalg.norm(box_pos - gripper_pos) < 0.012

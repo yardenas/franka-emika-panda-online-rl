@@ -35,7 +35,8 @@ class Session:
         self.ongoing_steps += data["steps"]
         data["ongoing_steps"] = self.ongoing_steps
         self.logger.append_row(data)
-        self.plotter.update(data)
+        # FIXME (yarden)
+        # self.plotter.update(data)
 
     @property
     def steps(self):

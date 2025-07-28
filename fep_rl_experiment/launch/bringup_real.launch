@@ -41,5 +41,5 @@
         <param name="trajectory_length"        value="$(arg trajectoryLength)"/>
         <param name="dt"        value="$(arg dt)"/>
     </node>
-   <node pkg="tf2_ros" type="static_transform_publisher" name="camera_link_broadcaster" args="1.176 0.001 0.483 0.65765434 0.65382486 -0.2637626 -0.26539238 panda_link0 camera_link"/>
+   <node pkg="tf2_ros" type="static_transform_publisher" name="camera_link_broadcaster" args="0.915 -0.1 0.32 -0.2588 0. 0.9656 0.0 panda_link0 camera_link"/>
 </launch>
