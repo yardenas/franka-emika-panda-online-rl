@@ -67,8 +67,8 @@ class Robot:
                 [0.0000000e00, 0.0000000e00, 0.0000000e00, 1.0000000e00],
             ]
         )
-        self.goal_tip_quat = np.array([0.0, 1.0, 0.0, 0.0])
-        self.start_pos = np.array([6.6105318e-01, -5.1778345e-04, 1.7906836e-01])
+        self.goal_tip_quat = np.array([-1.0, 0.0, 0.0, 0.0])
+        self.start_pos = np.array([0.55, -5.1778345e-04, 1.7906836e-01])
         self.ee_velocity_estimator = LinearVelocityEstimator()
         self.tf_buffer = tf2_ros.Buffer()
         self.listener = tf2_ros.TransformListener(self.tf_buffer)

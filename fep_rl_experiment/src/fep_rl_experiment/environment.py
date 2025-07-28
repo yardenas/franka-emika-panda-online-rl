@@ -64,7 +64,7 @@ class PandaPickCube:
         self.reached_box = 0.0
         time.sleep(5.0)
         img = self.robot.get_camera_image()
-        obs = {"pixels/view_0": img.astype(np.float32) / 255.0}
+        obs = {"pixels/view_0": img}
         return obs
 
     def step(self, action: np.ndarray):
@@ -92,7 +92,7 @@ class PandaPickCube:
         self.prev_reward = max(reward + self.prev_reward, self.prev_reward)
         # Observations
         img = self.robot.get_camera_image()
-        obs = {"pixels/view_0": img.astype(np.float32) / 255.0}
+        obs = {"pixels/view_0": img}
         out_of_bounds = np.any(np.abs(box_pos) > 1.0)
         out_of_bounds |= box_pos[2] < 0.0
         # FIXME (yarden): this should be corrected
