@@ -4,7 +4,8 @@
     </include>
     <include file="$(find realsense2_camera)/launch/rs_camera.launch">
         <arg name="camera" value="camera" />
-        <arg name="enable_depth" value="false"/>
+        <arg name="enable_depth" value="true"/>
+        <arg name="enable_pointcloud" value="true"/>
         <arg name="color_fps" value="30"/>
         <arg name="usb_port_id" value=""/>
         <arg name="serial_no" value=""/>
