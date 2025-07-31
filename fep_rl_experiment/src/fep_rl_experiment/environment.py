@@ -97,7 +97,7 @@ class PandaPickCube:
         out_of_bounds |= box_pos[2] < 0.0
         # FIXME (yarden): this should be corrected
         out_of_bounds = False
-        done = out_of_bounds or not self.robot.safe
+        done = out_of_bounds or not self.robot.safe or success
         info = {**rewards, "reached_box": self.reached_box}
         return obs, reward, done, info
 
