@@ -193,10 +193,13 @@ class Robot:
             goal.goal.speed = 0.4
             self.move_publisher.publish(goal)
         else:
-            goal = MoveActionGoal()
-            goal.goal.width = 0.00
+            goal = GraspActionGoal()
+            goal.goal.width = 0.04
             goal.goal.speed = 0.4
-            self.move_publisher.publish(goal)
+            goal.goal.force = 20.0
+            goal.goal.epsilon.inner = 0.04
+            goal.goal.epsilon.outer = 0.04
+            self.grasp_publisher.publish(goal)
         return new_tip_pos
 
     def get_end_effector_pos(self) -> np.ndarray:
