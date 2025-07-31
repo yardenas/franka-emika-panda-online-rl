@@ -7,6 +7,8 @@ from franka_gripper.msg import (
     MoveActionGoal,
     HomingAction,
     HomingActionGoal,
+    GraspAction,
+    MoveAction,
 )
 import actionlib
 from sensor_msgs.msg import Image, JointState
@@ -25,11 +27,11 @@ class Robot:
             PoseStamped,
             queue_size=1,
         )
-        self.grasp_publisher = rospy.Publisher(
-            "/franka_gripper/grasp/goal", GraspActionGoal, queue_size=1
+        self.grasp_action_client = actionlib.SimpleActionClient(
+            "/franka_gripper/grasp", GraspAction
         )
-        self.move_publisher = rospy.Publisher(
-            "/franka_gripper/move/goal", MoveActionGoal, queue_size=1
+        self.move_action_client = actionlib.SimpleActionClient(
+            "/franka_gripper/move", MoveAction
         )
         self.homing_client = actionlib.SimpleActionClient(
             "/franka_gripper/homing", HomingAction
@@ -194,19 +196,31 @@ class Robot:
         pose_msg.pose.orientation.z = float(self.goal_tip_quat[2])
         pose_msg.pose.orientation.w = float(self.goal_tip_quat[3])
         self._desired_ee_pose_pub.publish(pose_msg)
-        if action[3] >= 0.0:
+        if (
+            action[3] >= 0.0
+            and not self.move_action_client.get_state()
+            == actionlib.SimpleGoalState.ACTIVE
+        ):
+            if self.grasp_action_client.get_state() == actionlib.SimpleGoalState.ACTIVE:
+                self.grasp_action_client.cancel_all_goals()
             goal = MoveActionGoal()
             goal.goal.width = 0.06
             goal.goal.speed = 0.4
-            self.move_publisher.publish(goal)
-        else:
+            self.move_action_client.send_goal(goal)
+        elif (
+            action[3] < 0.0
+            and not self.grasp_action_client.get_state()
+            == actionlib.SimpleGoalState.ACTIVE
+        ):
+            if self.move_action_client.get_state() == actionlib.SimpleGoalState.ACTIVE:
+                self.move_action_client.cancel_all_goals()
             goal = GraspActionGoal()
             goal.goal.width = 0.04
             goal.goal.speed = 0.4
             goal.goal.force = 20.0
             goal.goal.epsilon.inner = 0.04
             goal.goal.epsilon.outer = 0.04
-            self.grasp_publisher.publish(goal)
+            self.grasp_action_client.send_goal(goal)
         return new_tip_pos
 
     def get_end_effector_pos(self) -> np.ndarray:
