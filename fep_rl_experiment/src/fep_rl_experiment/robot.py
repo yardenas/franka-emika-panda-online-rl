@@ -3,8 +3,8 @@ import numpy as np
 from collections import deque
 import cv2
 from franka_gripper.msg import (
-    GraspActionGoal,
-    MoveActionGoal,
+    GraspGoal,
+    MoveGoal,
     HomingAction,
     HomingActionGoal,
     GraspAction,
@@ -203,9 +203,9 @@ class Robot:
         ):
             if self.grasp_action_client.get_state() == actionlib.SimpleGoalState.ACTIVE:
                 self.grasp_action_client.cancel_all_goals()
-            goal = MoveActionGoal()
-            goal.goal.width = 0.06
-            goal.goal.speed = 0.4
+            goal = MoveGoal()
+            goal.width = 0.06
+            goal.speed = 0.4
             self.move_action_client.send_goal(goal)
         elif (
             action[3] < 0.0
@@ -214,12 +214,12 @@ class Robot:
         ):
             if self.move_action_client.get_state() == actionlib.SimpleGoalState.ACTIVE:
                 self.move_action_client.cancel_all_goals()
-            goal = GraspActionGoal()
-            goal.goal.width = 0.04
-            goal.goal.speed = 0.4
-            goal.goal.force = 20.0
-            goal.goal.epsilon.inner = 0.04
-            goal.goal.epsilon.outer = 0.04
+            goal = GraspGoal()
+            goal.width = 0.04
+            goal.speed = 0.4
+            goal.force = 20.0
+            goal.epsilon.inner = 0.04
+            goal.epsilon.outer = 0.04
             self.grasp_action_client.send_goal(goal)
         return new_tip_pos
 
