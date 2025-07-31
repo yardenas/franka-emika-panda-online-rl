@@ -196,26 +196,16 @@ class Robot:
         pose_msg.pose.orientation.z = float(self.goal_tip_quat[2])
         pose_msg.pose.orientation.w = float(self.goal_tip_quat[3])
         self._desired_ee_pose_pub.publish(pose_msg)
-        if (
-            action[3] >= 0.0
-        ):
-            goal = GraspGoal()
+        if action[3] >= 0.0:
+            goal = MoveGoal()
             goal.width = 0.06
             goal.speed = 0.4
-            goal.force = 20.0
-            goal.epsilon.inner = 0.00
-            goal.epsilon.outer = 0.00
-            self.grasp_action_client.send_goal(goal)
-        elif (
-            action[3] < 0.0
-        ):
-            goal = GraspGoal()
-            goal.width = 0.02
+            self.move_action_client.send_goal(goal)
+        elif action[3] < 0.0:
+            goal = MoveGoal()
+            goal.width = 0.00
             goal.speed = 0.4
-            goal.force = 20.0
-            goal.epsilon.inner = 0.04
-            goal.epsilon.outer = 0.04
-            self.grasp_action_client.send_goal(goal)
+            self.move_action_client.send_goal(goal)
         return new_tip_pos
 
     def get_end_effector_pos(self) -> np.ndarray:
