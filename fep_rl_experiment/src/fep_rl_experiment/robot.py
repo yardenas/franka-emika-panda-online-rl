@@ -305,7 +305,7 @@ def _crop_and_resize(rgb_image):
 
 def _preprocess_image(rgb_image):
     rgb_image = _crop_and_resize(rgb_image)
-    out = _mask_colors(rgb_image)
+    out = rgb_image
     # Normalize to [0, 1] and convert to float32
     rgb_image_normalized = out.astype(np.float32) / 255.0
     return rgb_image_normalized
