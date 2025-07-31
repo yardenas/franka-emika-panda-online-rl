@@ -2,15 +2,8 @@ import rospy
 import numpy as np
 from collections import deque
 import cv2
-from franka_gripper.msg import (
-    GraspGoal,
-    MoveGoal,
-    HomingAction,
-    HomingActionGoal,
-    GraspAction,
-    MoveAction,
-)
 import actionlib
+from control_msgs.msg import GripperCommandAction, GripperCommandGoal
 from sensor_msgs.msg import Image, JointState
 from geometry_msgs.msg import PoseStamped
 from cv_bridge import CvBridge
@@ -27,18 +20,13 @@ class Robot:
             PoseStamped,
             queue_size=1,
         )
-        self.grasp_action_client = actionlib.SimpleActionClient(
-            "/franka_gripper/grasp", GraspAction
-        )
-        self.move_action_client = actionlib.SimpleActionClient(
-            "/franka_gripper/move", MoveAction
-        )
-        self.homing_client = actionlib.SimpleActionClient(
-            "/franka_gripper/homing", HomingAction
-        )
+
         self.bridge = CvBridge()
         self.image_sub = rospy.Subscriber(
             "/camera/color/image_raw", Image, self.image_callback, queue_size=1
+        )
+        self.gripper_command_client = actionlib.SimpleActionClient(
+            "/franka_gripper/gripper_action", GripperCommandAction
         )
         self.image_pub = rospy.Publisher("processed_image", Image, queue_size=1)
         self.ee_pose_sub = rospy.Subscriber(
@@ -74,7 +62,7 @@ class Robot:
         self.ee_velocity_estimator = LinearVelocityEstimator()
         self.tf_buffer = tf2_ros.Buffer()
         self.listener = tf2_ros.TransformListener(self.tf_buffer)
-        self.gripper_command = False
+        self.previous_close = False
 
     def image_callback(self, msg: Image):
         try:
@@ -150,9 +138,6 @@ class Robot:
     def reset_service_cb(self, req):
         """Resets the controller."""
         rospy.loginfo("Resetting robot...")
-        goal = HomingActionGoal()
-        self.homing_client.send_goal(goal)
-        self.homing_client.wait_for_result()
         target_pose = PoseStamped()
         target_pose.header.frame_id = "panda_link0"
         target_pose.header.stamp = rospy.Time.now()
@@ -166,7 +151,7 @@ class Robot:
         target_pose.pose.orientation.w = float(self.goal_tip_quat[3])
         self._desired_ee_pose_pub.publish(target_pose)
         self._running = False
-        self.gripper_command = False
+        self.previous_close = False
         return []
 
     def act(self, action: np.ndarray) -> np.ndarray:
@@ -199,21 +184,20 @@ class Robot:
         pose_msg.pose.orientation.w = float(self.goal_tip_quat[3])
         self._desired_ee_pose_pub.publish(pose_msg)
 
-        def set_gripper(*args, **kwargs):
-            self.gripper_command = False
-
-        if action[3] >= 0.0 and not self.gripper_command:
-            goal = MoveGoal()
-            goal.width = 0.06
-            goal.speed = 0.4
-            self.move_action_client.send_goal(goal, done_cb=set_gripper)
-            self.gripper_command = True
-        elif action[3] < 0.0 and not self.gripper_command:
-            goal = MoveGoal()
-            goal.width = 0.00
-            goal.speed = 0.4
-            self.move_action_client.send_goal(goal, done_cb=set_gripper)
-            self.gripper_command = True
+        if action[3] >= 0.0 and self.previous_close:
+            goal = GripperCommandGoal()
+            goal.command.position = 0.03
+            goal.command.max_effort = 50.0
+            self.gripper_command_client.send_goal(goal)
+            self.previous_close = False
+            self.gripper_command_client.wait_for_result(timeout=rospy.Duration(0.25))
+        elif action[3] < 0.0 and not self.previous_close:
+            goal = GripperCommandGoal()
+            goal.command.position = 0.015
+            goal.command.max_effort = 20.0
+            self.gripper_command_client.send_goal(goal)
+            self.previous_close = True
+            self.gripper_command_client.wait_for_result(timeout=rospy.Duration(0.25))
         return new_tip_pos
 
     def get_end_effector_pos(self) -> np.ndarray:
