@@ -74,6 +74,7 @@ class Robot:
         self.ee_velocity_estimator = LinearVelocityEstimator()
         self.tf_buffer = tf2_ros.Buffer()
         self.listener = tf2_ros.TransformListener(self.tf_buffer)
+        self.gripper_command = False
 
     def image_callback(self, msg: Image):
         try:
@@ -165,6 +166,7 @@ class Robot:
         target_pose.pose.orientation.w = float(self.goal_tip_quat[3])
         self._desired_ee_pose_pub.publish(target_pose)
         self._running = False
+        self.gripper_command = False
         return []
 
     def act(self, action: np.ndarray) -> np.ndarray:
@@ -196,16 +198,22 @@ class Robot:
         pose_msg.pose.orientation.z = float(self.goal_tip_quat[2])
         pose_msg.pose.orientation.w = float(self.goal_tip_quat[3])
         self._desired_ee_pose_pub.publish(pose_msg)
-        if action[3] >= 0.0:
+
+        def set_gripper(*args, **kwargs):
+            self.gripper_command = False
+
+        if action[3] >= 0.0 and not self.gripper_command:
             goal = MoveGoal()
             goal.width = 0.06
             goal.speed = 0.4
-            self.move_action_client.send_goal(goal)
-        elif action[3] < 0.0:
+            self.move_action_client.send_goal(goal, done_cb=set_gripper)
+            self.gripper_command = True
+        elif action[3] < 0.0 and not self.gripper_command:
             goal = MoveGoal()
             goal.width = 0.00
             goal.speed = 0.4
-            self.move_action_client.send_goal(goal)
+            self.move_action_client.send_goal(goal, done_cb=set_gripper)
+            self.gripper_command = True
         return new_tip_pos
 
     def get_end_effector_pos(self) -> np.ndarray:
