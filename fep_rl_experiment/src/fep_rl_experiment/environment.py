@@ -39,7 +39,7 @@ class PandaPickCube:
         self.robot = robot
         self.prev_reward = 0.0
         self.reached_box = 0.0
-        x_plane = self.robot.goal_tip_transform[0, 3] - 0.03
+        x_plane = self.robot.start_pos[0]
         self.target_pos = np.array([x_plane, 0.0, 0.2])
         self.target_quat = np.array([1.0, 0.0, 0.0, 0.0])
         self.init_joint_state = np.array(
@@ -98,7 +98,7 @@ class PandaPickCube:
         # FIXME (yarden): this should be corrected
         out_of_bounds = False
         done = out_of_bounds or not self.robot.safe
-        info = {**rewards, "reached_box": success}
+        info = {**rewards, "reached_box": self.reached_box}
         return obs, reward, done, info
 
     def _get_reward(self):

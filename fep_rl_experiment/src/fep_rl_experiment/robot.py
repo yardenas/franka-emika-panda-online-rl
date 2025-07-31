@@ -59,14 +59,6 @@ class Robot:
         self.last_tip_pos_time = None
         self.last_joint_state_time = None
         self.last_cube_time = None
-        self.goal_tip_transform = np.array(
-            [
-                [9.9849617e-01, 9.4118714e-04, 5.4812428e-02, 6.6105318e-01],
-                [1.0211766e-03, -9.9999845e-01, -1.4304515e-03, -5.1778345e-04],
-                [5.4810949e-02, 1.4842749e-03, -9.9849564e-01, 1.7906836e-01],
-                [0.0000000e00, 0.0000000e00, 0.0000000e00, 1.0000000e00],
-            ]
-        )
         self.goal_tip_quat = np.array([-1.0, 0.0, 0.0, 0.0])
         self.start_pos = np.array([6.6105e-1, -5.1778345e-04, 1.7906836e-01])
         self.ee_velocity_estimator = LinearVelocityEstimator()
