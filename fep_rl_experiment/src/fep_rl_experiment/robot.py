@@ -2,13 +2,18 @@ import rospy
 import numpy as np
 from collections import deque
 import cv2
-from franka_gripper.msg import GraspActionGoal, MoveActionGoal
+from franka_gripper.msg import (
+    GraspActionGoal,
+    MoveActionGoal,
+    HomingAction,
+    HomingActionGoal,
+)
+import actionlib
 from sensor_msgs.msg import Image, JointState
 from geometry_msgs.msg import PoseStamped
 from cv_bridge import CvBridge
 from std_srvs.srv import Empty, SetBool
 import tf2_ros
-from scipy.spatial.transform import Rotation as R
 
 
 class Robot:
@@ -25,6 +30,9 @@ class Robot:
         )
         self.move_publisher = rospy.Publisher(
             "/franka_gripper/move/goal", MoveActionGoal, queue_size=1
+        )
+        self.homing_client = actionlib.SimpleActionClient(
+            "/franka_gripper/homing", HomingAction
         )
         self.bridge = CvBridge()
         self.image_sub = rospy.Subscriber(
@@ -139,10 +147,9 @@ class Robot:
     def reset_service_cb(self, req):
         """Resets the controller."""
         rospy.loginfo("Resetting robot...")
-        goal = MoveActionGoal()
-        goal.goal.width = 0.06
-        goal.goal.speed = 10.0
-        self.move_publisher.publish(goal)
+        goal = HomingActionGoal()
+        self.homing_client.send_goal(goal)
+        self.homing_client.wait_for_result()
         target_pose = PoseStamped()
         target_pose.header.frame_id = "panda_link0"
         target_pose.header.stamp = rospy.Time.now()
