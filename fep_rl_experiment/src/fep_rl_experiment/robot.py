@@ -198,29 +198,20 @@ class Robot:
         self._desired_ee_pose_pub.publish(pose_msg)
         if (
             action[3] >= 0.0
-            and not self.move_action_client.get_state()
-            == actionlib.SimpleGoalState.ACTIVE
         ):
-            if self.grasp_action_client.get_state() == actionlib.SimpleGoalState.ACTIVE:
-                self.grasp_action_client.cancel_all_goals()
             goal = MoveGoal()
             goal.width = 0.06
             goal.speed = 0.4
             self.move_action_client.send_goal(goal)
         elif (
             action[3] < 0.0
-            and not self.grasp_action_client.get_state()
-            == actionlib.SimpleGoalState.ACTIVE
         ):
             if self.move_action_client.get_state() == actionlib.SimpleGoalState.ACTIVE:
                 self.move_action_client.cancel_all_goals()
-            goal = GraspGoal()
-            goal.width = 0.04
+            goal = MoveGoal()
+            goal.width = 0.00
             goal.speed = 0.4
-            goal.force = 20.0
-            goal.epsilon.inner = 0.04
-            goal.epsilon.outer = 0.04
-            self.grasp_action_client.send_goal(goal)
+            self.move_action_client.send_goal(goal)
         return new_tip_pos
 
     def get_end_effector_pos(self) -> np.ndarray:
