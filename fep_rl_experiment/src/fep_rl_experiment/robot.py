@@ -199,19 +199,23 @@ class Robot:
         if (
             action[3] >= 0.0
         ):
-            goal = MoveGoal()
+            goal = GraspGoal()
             goal.width = 0.06
             goal.speed = 0.4
-            self.move_action_client.send_goal(goal)
+            goal.force = 20.0
+            goal.epsilon.inner = 0.00
+            goal.epsilon.outer = 0.00
+            self.grasp_action_client.send_goal(goal)
         elif (
             action[3] < 0.0
         ):
-            if self.move_action_client.get_state() == actionlib.SimpleGoalState.ACTIVE:
-                self.move_action_client.cancel_all_goals()
-            goal = MoveGoal()
-            goal.width = 0.00
+            goal = GraspGoal()
+            goal.width = 0.02
             goal.speed = 0.4
-            self.move_action_client.send_goal(goal)
+            goal.force = 20.0
+            goal.epsilon.inner = 0.04
+            goal.epsilon.outer = 0.04
+            self.grasp_action_client.send_goal(goal)
         return new_tip_pos
 
     def get_end_effector_pos(self) -> np.ndarray:
