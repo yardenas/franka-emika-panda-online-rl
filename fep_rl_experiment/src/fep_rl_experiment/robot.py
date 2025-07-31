@@ -104,7 +104,7 @@ class Robot:
     def get_cube_pos(self, frame="panda_link0") -> np.ndarray:
         try:
             transformed_pose = self.tf_buffer.lookup_transform(
-                "aruco_cube_frame", frame, rospy.Time(0)
+                frame, "aruco_cube_frame", rospy.Time(0)
             )
             pos = transformed_pose.transform.translation
             self.last_cube_time = transformed_pose.header.stamp
@@ -120,7 +120,7 @@ class Robot:
     def get_cube_quat(self, frame="panda_link0") -> np.ndarray:
         try:
             transformed_pose = self.tf_buffer.lookup_transform(
-                "aruco_cube_frame", frame, rospy.Time(0)
+                frame, "aruco_cube_frame", rospy.Time(0)
             )
             quat = transformed_pose.transform.rotation
             return np.array([quat.x, quat.y, quat.z, quat.w])
@@ -254,7 +254,7 @@ class Robot:
     @property
     def safe(self):
         pos = self.get_end_effector_pos()
-        out_of_bounds = np.any(np.abs(pos) > 1.0)
+        out_of_bounds = np.any(np.abs(pos - self.start_pos) > 0.25)
         if out_of_bounds:
             rospy.logwarn(
                 f"Robot out of bounds. Position is: {self.get_end_effector_pos()}"
@@ -291,7 +291,7 @@ class LinearVelocityEstimator:
 
 def _crop_and_resize(rgb_image):
     crop_top = 100  # pixels to crop from the top
-    crop_bottom = 20  # pixels to crop from the bottom
+    crop_bottom = 0  # pixels to crop from the bottom
     crop_left = 250  # optional: pixels from the left
     crop_right = 250  # optional: pixels from the right
     height, width, _ = rgb_image.shape
