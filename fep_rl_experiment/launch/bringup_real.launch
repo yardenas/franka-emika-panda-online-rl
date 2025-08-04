@@ -35,7 +35,7 @@
         <param name="corner_refinement"  value="$(arg corner_refinement)" />
     </node>
     <arg name="sessionId" default="training_session"/>
-    <arg name="trajectoryLength" default="80"/>
+    <arg name="trajectoryLength" default="250"/>
     <arg name="dt" default="0.05"/>
     <node pkg="fep_rl_experiment" type="online_learning.py" output="screen" name="online_learning">
         <param name="session_id"        value="$(arg sessionId)"/>

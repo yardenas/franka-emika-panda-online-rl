@@ -100,7 +100,7 @@ class PandaPickCube:
         # FIXME (yarden): this should be corrected
         out_of_bounds = False
         done = out_of_bounds or not self.robot.safe or success
-        info = {**rewards, "reached_box": self.reached_box, "success": success}
+        info = {**raw_rewards, "reached_box": self.reached_box, "success": success, "lifted": box_pos[2] > 0.05}
         return obs, reward, done, info
 
     def _get_reward(self):
@@ -118,7 +118,7 @@ class PandaPickCube:
         hand_floor_collision = gripper_pos[-1] < -0.001
         no_floor_collision = 1 - hand_floor_collision
         self.reached_box = np.maximum(
-            self.reached_box, np.linalg.norm(box_pos - gripper_pos) < 0.012
+            self.reached_box, np.linalg.norm(box_pos - gripper_pos) < 0.025
         )
         rewards = {
             "gripper_box": gripper_box,

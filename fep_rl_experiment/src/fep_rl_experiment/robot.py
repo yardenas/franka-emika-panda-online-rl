@@ -190,14 +190,12 @@ class Robot:
             goal.command.max_effort = 50.0
             self.gripper_command_client.send_goal(goal)
             self.previous_close = False
-            self.gripper_command_client.wait_for_result(timeout=rospy.Duration(0.25))
         elif action[3] < 0.0 and not self.previous_close:
             goal = GripperCommandGoal()
             goal.command.position = 0.015
-            goal.command.max_effort = 20.0
+            goal.command.max_effort = 50.0
             self.gripper_command_client.send_goal(goal)
             self.previous_close = True
-            self.gripper_command_client.wait_for_result(timeout=rospy.Duration(0.25))
         return new_tip_pos
 
     def get_end_effector_pos(self) -> np.ndarray:
