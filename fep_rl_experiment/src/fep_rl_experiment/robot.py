@@ -3,6 +3,7 @@ import numpy as np
 from collections import deque
 import cv2
 import actionlib
+from franka_gripper.msg import HomingAction, HomingGoal
 from control_msgs.msg import GripperCommandAction, GripperCommandGoal
 from sensor_msgs.msg import Image, JointState
 from geometry_msgs.msg import PoseStamped
@@ -27,6 +28,9 @@ class Robot:
         )
         self.gripper_command_client = actionlib.SimpleActionClient(
             "/franka_gripper/gripper_action", GripperCommandAction
+        )
+        self.gripper_homing_action = actionlib.SimpleActionClient(
+            "/franka_gripper/homing", HomingAction
         )
         self.image_pub = rospy.Publisher("processed_image", Image, queue_size=1)
         self.ee_pose_sub = rospy.Subscriber(
@@ -138,6 +142,8 @@ class Robot:
     def reset_service_cb(self, req):
         """Resets the controller."""
         rospy.loginfo("Resetting robot...")
+        goal = HomingGoal()
+        self.gripper_homing_action.send_goal(goal)
         target_pose = PoseStamped()
         target_pose.header.frame_id = "panda_link0"
         target_pose.header.stamp = rospy.Time.now()
@@ -150,6 +156,7 @@ class Robot:
         target_pose.pose.orientation.z = float(self.goal_tip_quat[2])
         target_pose.pose.orientation.w = float(self.goal_tip_quat[3])
         self._desired_ee_pose_pub.publish(target_pose)
+        self.gripper_homing_action.wait_for_server()
         self._running = False
         self.previous_close = False
         return []
