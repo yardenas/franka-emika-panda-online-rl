@@ -260,10 +260,10 @@ class LinearVelocityEstimator:
 
 
 def _crop_and_resize(grayscale):
-    crop_top = 50  # pixels to crop from the top
+    crop_top = 75  # pixels to crop from the top
     crop_bottom = 0  # pixels to crop from the bottom
-    crop_left = 100  # optional: pixels from the left
-    crop_right = 125  # optional: pixels from the right
+    crop_left = 140  # optional: pixels from the left
+    crop_right = 140  # optional: pixels from the right
     height, width = grayscale.shape
     # Ensure you don't go out of bounds
     grayscale = grayscale[
