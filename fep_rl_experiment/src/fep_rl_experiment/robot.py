@@ -62,11 +62,10 @@ class Robot:
         self.last_joint_state_time = None
         self.last_cube_time = None
         self.goal_tip_quat = np.array([-1.0, 0.0, 0.0, 0.0])
-        self.start_pos = np.array([6.6105e-1, -5.1778345e-04, 1.7906836e-01])
+        self.start_pos = np.array([6.6105e-1, -0.05, 1.7906836e-01])
         self.ee_velocity_estimator = LinearVelocityEstimator()
         self.tf_buffer = tf2_ros.Buffer()
         self.listener = tf2_ros.TransformListener(self.tf_buffer)
-        self.previous_close = False
 
     def image_callback(self, msg: Image):
         try:
@@ -156,9 +155,8 @@ class Robot:
         target_pose.pose.orientation.z = float(self.goal_tip_quat[2])
         target_pose.pose.orientation.w = float(self.goal_tip_quat[3])
         self._desired_ee_pose_pub.publish(target_pose)
-        self.gripper_homing_action.wait_for_server()
+        self.gripper_homing_action.wait_for_result()
         self._running = False
-        self.previous_close = False
         return []
 
     def act(self, action: np.ndarray) -> np.ndarray:
@@ -182,7 +180,7 @@ class Robot:
         pose_msg = PoseStamped()
         pose_msg.header.frame_id = "panda_link0"
         pose_msg.header.stamp = rospy.Time.now()
-        pose_msg.pose.position.x = float(new_tip_pos[0])
+        pose_msg.pose.position.x = float(self.start_pos[0])
         pose_msg.pose.position.y = float(new_tip_pos[1])
         pose_msg.pose.position.z = float(new_tip_pos[2])
         pose_msg.pose.orientation.x = float(self.goal_tip_quat[0])
@@ -191,18 +189,16 @@ class Robot:
         pose_msg.pose.orientation.w = float(self.goal_tip_quat[3])
         self._desired_ee_pose_pub.publish(pose_msg)
 
-        if action[3] >= 0.0 and self.previous_close:
+        if action[3] >= 0.0:
             goal = GripperCommandGoal()
             goal.command.position = 0.03
             goal.command.max_effort = 50.0
             self.gripper_command_client.send_goal(goal)
-            self.previous_close = False
-        elif action[3] < 0.0 and not self.previous_close:
+        elif action[3] < 0.0:
             goal = GripperCommandGoal()
             goal.command.position = 0.015
             goal.command.max_effort = 50.0
             self.gripper_command_client.send_goal(goal)
-            self.previous_close = True
         return new_tip_pos
 
     def get_end_effector_pos(self) -> np.ndarray:
@@ -260,7 +256,7 @@ class Robot:
     @property
     def safe(self):
         pos = self.get_end_effector_pos()
-        out_of_bounds = np.any(np.abs(pos - self.start_pos) > 0.25)
+        out_of_bounds = np.any(np.abs(pos - self.start_pos) > 0.3)
         if out_of_bounds:
             rospy.logwarn(
                 f"Robot out of bounds. Position is: {self.get_end_effector_pos()}"
@@ -298,7 +294,7 @@ class LinearVelocityEstimator:
 def _crop_and_resize(rgb_image):
     crop_top = 50  # pixels to crop from the top
     crop_bottom = 0  # pixels to crop from the bottom
-    crop_left = 125  # optional: pixels from the left
+    crop_left = 100  # optional: pixels from the left
     crop_right = 125  # optional: pixels from the right
     height, width, _ = rgb_image.shape
     # Ensure you don't go out of bounds
