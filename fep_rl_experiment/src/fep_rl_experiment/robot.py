@@ -259,18 +259,18 @@ class LinearVelocityEstimator:
         return v_est.flatten()  # Shape: (3,)
 
 
-def _crop_and_resize(rgb_image):
+def _crop_and_resize(grayscale):
     crop_top = 50  # pixels to crop from the top
     crop_bottom = 0  # pixels to crop from the bottom
     crop_left = 100  # optional: pixels from the left
     crop_right = 125  # optional: pixels from the right
-    height, width, _ = rgb_image.shape
+    height, width = grayscale.shape
     # Ensure you don't go out of bounds
-    rgb_image = rgb_image[
+    grayscale = grayscale[
         crop_top : height - crop_bottom, crop_left : width - crop_right
     ]
-    rgb_image = cv2.resize(rgb_image, (84, 84), interpolation=cv2.INTER_LINEAR)
-    return rgb_image
+    grayscale = cv2.resize(grayscale, (84, 84), interpolation=cv2.INTER_LINEAR)
+    return grayscale
 
 
 def _preprocess_image(grayscale):
