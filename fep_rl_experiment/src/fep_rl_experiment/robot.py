@@ -260,17 +260,14 @@ class LinearVelocityEstimator:
 
 
 def _crop_and_resize(grayscale):
-    crop_top = 75  # pixels to crop from the top
-    crop_bottom = 0  # pixels to crop from the bottom
-    crop_left = 140  # optional: pixels from the left
-    crop_right = 140  # optional: pixels from the right
     height, width = grayscale.shape
-    # Ensure you don't go out of bounds
-    grayscale = grayscale[
-        crop_top : height - crop_bottom, crop_left : width - crop_right
-    ]
-    grayscale = cv2.resize(grayscale, (84, 84), interpolation=cv2.INTER_LINEAR)
-    return grayscale
+    # Determine side crop to make the image square
+    new_width = height  # because height is smaller dimension
+    crop_amount = (width - new_width) // 2  # crop equally from both sides
+    # Perform square crop
+    cropped = grayscale[:, crop_amount:crop_amount + new_width]
+    cropped = cv2.resize(cropped, (64, 64), interpolation=cv2.INTER_LINEAR)
+    return cropped
 
 
 def _preprocess_image(grayscale):
