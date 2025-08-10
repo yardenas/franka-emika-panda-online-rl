@@ -296,10 +296,10 @@ class LinearVelocityEstimator:
 
 
 def _crop_and_resize(rgb_image):
-    crop_top = 100  # pixels to crop from the top
+    crop_top = 50  # pixels to crop from the top
     crop_bottom = 0  # pixels to crop from the bottom
-    crop_left = 250  # optional: pixels from the left
-    crop_right = 250  # optional: pixels from the right
+    crop_left = 125  # optional: pixels from the left
+    crop_right = 125  # optional: pixels from the right
     height, width, _ = rgb_image.shape
     # Ensure you don't go out of bounds
     rgb_image = rgb_image[
