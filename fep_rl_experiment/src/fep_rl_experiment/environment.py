@@ -115,10 +115,7 @@ class PandaPickCube:
         # FIXME (yarden): double check that end effector pos == gripper pos
         gripper_pos = self.robot.get_end_effector_pos()
         pos_err = np.linalg.norm(box_pos - self.target_pos)
-        box_mat = _quat_to_mat(self.robot.get_cube_quat())
-        target_mat = _quat_to_mat(self.target_quat)
-        rot_err = np.linalg.norm(target_mat.ravel()[:6] - box_mat.ravel()[:6])
-        box_target = 1.0 - np.tanh(5 * (0.9 * pos_err + 0.1 * rot_err))
+        box_target = 1.0 - np.tanh(5 * (pos_err))
         gripper_box = 1 - np.tanh(5 * np.linalg.norm(box_pos - gripper_pos))
         qpos = self.robot.get_joint_state()
         robot_target_qpos = 1 - np.tanh(np.linalg.norm(qpos - self.init_joint_state))
