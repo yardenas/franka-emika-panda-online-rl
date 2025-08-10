@@ -62,9 +62,10 @@ class PandaPickCube:
         self.robot.reset_service_cb(None)
         self.prev_reward = 0.0
         self.reached_box = 0.0
-        time.sleep(1.)
+        time.sleep(1.0)
         img = self.robot.get_camera_image()
-        obs = {"pixels/view_0": img}
+        ee = self.robot.get_end_effector_pos()
+        obs = {"pixels/view_0": img, "state": ee}
         return obs
 
     def step(self, action: np.ndarray):
@@ -94,13 +95,19 @@ class PandaPickCube:
         self.prev_reward = max(reward + self.prev_reward, self.prev_reward)
         # Observations
         img = self.robot.get_camera_image()
-        obs = {"pixels/view_0": img}
+        ee = self.robot.get_end_effector_pos()
+        obs = {"pixels/view_0": img, "state": ee}
         out_of_bounds = np.any(np.abs(box_pos) > 1.0)
         out_of_bounds |= box_pos[2] < 0.0
         # FIXME (yarden): this should be corrected
         out_of_bounds = False
         done = out_of_bounds or not self.robot.safe or success
-        info = {**raw_rewards, "reached_box": self.reached_box, "success": success, "lifted": box_pos[2] > 0.05}
+        info = {
+            **raw_rewards,
+            "reached_box": self.reached_box,
+            "success": success,
+            "lifted": box_pos[2] > 0.05,
+        }
         return obs, reward, done, info
 
     def _get_reward(self):

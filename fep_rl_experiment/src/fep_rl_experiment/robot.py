@@ -70,12 +70,12 @@ class Robot:
     def image_callback(self, msg: Image):
         try:
             bgr_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding="bgr8")
-            rgb_image = cv2.cvtColor(bgr_image, cv2.COLOR_BGR2RGB)
-            image = _preprocess_image(rgb_image)
+            grayscale = cv2.cvtColor(bgr_image, cv2.COLOR_BGR2GRAY)
+            image = _preprocess_image(grayscale)
             self.latest_image = image
             self.last_image_time = msg.header.stamp
             output_msg = self.bridge.cv2_to_imgmsg(
-                (image * 255).astype(np.uint8), encoding="rgb8"
+                (image * 255).astype(np.uint8), encoding="mono8"
             )
             output_msg.header.stamp = rospy.Time.now()  # Optional: add timestamp
             self.image_pub.publish(output_msg)
@@ -222,38 +222,6 @@ class Robot:
         return ready
 
     @property
-    def in_sync(self):
-        # FIXME (yarden)
-        return True
-        timestamp_dict = {
-            "last_image_time": self.last_image_time,
-            "last_tip_pos_time": self.last_tip_pos_time,
-            "last_joint_state_time": self.last_joint_state_time,
-            "last_cube_time": self.last_cube_time,
-        }
-        # Check for None values
-        for name, ts in timestamp_dict.items():
-            if ts is None:
-                rospy.logwarn(f"Timestamp '{name}' is None.")
-                return False
-        keys = list(timestamp_dict.keys())
-        max_diff = rospy.Duration.from_sec(0.15)
-        for i in range(len(keys)):
-            for j in range(i + 1, len(keys)):
-                t1_name = keys[i]
-                t2_name = keys[j]
-                t1 = timestamp_dict[t1_name]
-                t2 = timestamp_dict[t2_name]
-                diff = abs((t1 - t2).to_sec())
-                if diff > max_diff.to_sec():
-                    rospy.logwarn(
-                        f"Timestamps '{t1_name}' and '{t2_name}' differ by {diff:.6f} seconds, "
-                        f"which exceeds threshold of {max_diff.to_sec():.6f} seconds."
-                    )
-                    return False
-        return True
-
-    @property
     def safe(self):
         pos = self.get_end_effector_pos()
         out_of_bounds = np.any(np.abs(pos - self.start_pos) > 0.3)
@@ -301,41 +269,13 @@ def _crop_and_resize(rgb_image):
     rgb_image = rgb_image[
         crop_top : height - crop_bottom, crop_left : width - crop_right
     ]
-    rgb_image = cv2.resize(rgb_image, (64, 64), interpolation=cv2.INTER_LINEAR)
+    rgb_image = cv2.resize(rgb_image, (84, 84), interpolation=cv2.INTER_LINEAR)
     return rgb_image
 
 
-def _preprocess_image(rgb_image):
-    rgb_image = _crop_and_resize(rgb_image)
-    out = rgb_image
+def _preprocess_image(grayscale):
+    grayscale = _crop_and_resize(grayscale)
+    out = grayscale
     # Normalize to [0, 1] and convert to float32
-    rgb_image_normalized = out.astype(np.float32) / 255.0
-    return rgb_image_normalized
-
-
-def _mask_colors(rgb_image):
-    image_hsv = cv2.cvtColor(rgb_image, cv2.COLOR_RGB2HSV)
-    # --- Red Mask ---
-    lower_red1 = np.array([0, 100, 100])
-    upper_red1 = np.array([10, 255, 255])
-    lower_red2 = np.array([160, 100, 100])
-    upper_red2 = np.array([180, 255, 255])
-    mask_red = cv2.inRange(image_hsv, lower_red1, upper_red1) | cv2.inRange(
-        image_hsv, lower_red2, upper_red2
-    )
-    # --- White Mask ---
-    lower_white = np.array([0, 0, 170])
-    upper_white = np.array([180, 60, 255])
-    mask_white = cv2.inRange(image_hsv, lower_white, upper_white)
-    kernel = np.ones((3, 3), np.uint8)
-    mask_white = cv2.dilate(mask_white, kernel, iterations=1)
-    # --- Black Mask ---
-    lower_black = np.array([0, 0, 0])
-    upper_black = np.array([180, 255, 50])
-    mask_black = cv2.inRange(image_hsv, lower_black, upper_black)
-    # Combine masks or use individually
-    segmented = cv2.bitwise_and(
-        rgb_image, rgb_image, mask=mask_red | mask_white | mask_black
-    )
-    segmented[mask_black > 0] = [0, 0, 0]
-    return segmented
+    normalized = out.astype(np.float32) / 255.0
+    return normalized
