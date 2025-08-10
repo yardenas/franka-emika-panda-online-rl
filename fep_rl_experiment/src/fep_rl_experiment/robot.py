@@ -272,7 +272,6 @@ def _crop_and_resize(grayscale):
 
 def _preprocess_image(grayscale):
     grayscale = _crop_and_resize(grayscale)
-    out = grayscale
     # Normalize to [0, 1] and convert to float32
-    normalized = out.astype(np.float32) / 255.0
+    normalized = grayscale.astype(np.float32) / 255.0
     return normalized
