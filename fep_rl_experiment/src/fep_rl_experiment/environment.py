@@ -40,7 +40,7 @@ class PandaPickCube:
         self.prev_reward = 0.0
         self.reached_box = 0.0
         x_plane = self.robot.start_pos[0]
-        self.target_pos = np.array([x_plane, 0.0, 0.2])
+        self.target_pos = np.array([x_plane, -0.05, 0.2])
         self.target_quat = np.array([1.0, 0.0, 0.0, 0.0])
         self.init_joint_state = np.array(
             [
