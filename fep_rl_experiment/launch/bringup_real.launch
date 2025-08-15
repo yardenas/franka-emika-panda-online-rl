@@ -9,8 +9,6 @@
         <arg name="color_fps" value="30"/>
         <arg name="usb_port_id" value=""/>
         <arg name="serial_no" value=""/>
-        <arg name="color_width" value="64"/>
-        <arg name="color_height" value="64"/>
     </include>
     <arg name="markerIds"       default="571 581 591 601 611 621"/>      <!-- set your marker id -->
     <arg name="markerSize"      default="0.042"/>    <!-- in m -->

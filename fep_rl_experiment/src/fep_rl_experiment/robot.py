@@ -2,9 +2,9 @@ import rospy
 import numpy as np
 from collections import deque
 import cv2
-import actionlib
-from franka_gripper.msg import HomingAction, HomingGoal
-from control_msgs.msg import GripperCommandAction, GripperCommandGoal
+import time
+from franka_gripper.msg import HomingAction, HomingGoal, StopActionGoal, MoveActionGoal
+from control_msgs.msg import GripperCommandActionGoal
 from sensor_msgs.msg import Image, JointState
 from geometry_msgs.msg import PoseStamped
 from cv_bridge import CvBridge
@@ -26,11 +26,16 @@ class Robot:
         self.image_sub = rospy.Subscriber(
             "/camera/color/image_raw", Image, self.image_callback, queue_size=1
         )
-        self.gripper_command_client = actionlib.SimpleActionClient(
-            "/franka_gripper/gripper_action", GripperCommandAction
+        self.gripper_command_pub = rospy.Publisher(
+            "/franka_gripper/gripper_action/goal",
+            GripperCommandActionGoal,
+            queue_size=1,
         )
-        self.gripper_homing_action = actionlib.SimpleActionClient(
-            "/franka_gripper/homing", HomingAction
+        self.stop_action_pub = rospy.Publisher(
+            "/franka_gripper/stop/goal", StopActionGoal, queue_size=1
+        )
+        self.move_action_pub = rospy.Publisher(
+            "/franka_gripper/move/goal", MoveActionGoal, queue_size=1
         )
         self.image_pub = rospy.Publisher("processed_image", Image, queue_size=1)
         self.ee_pose_sub = rospy.Subscriber(
@@ -70,12 +75,12 @@ class Robot:
     def image_callback(self, msg: Image):
         try:
             bgr_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding="bgr8")
-            rgb_image = cv2.cvtColor(bgr_image, cv2.COLOR_BGR2RGB)
-            image = _preprocess_image(rgb_image)
-            self.latest_image = image
+            grayscale = cv2.cvtColor(bgr_image, cv2.COLOR_BGR2GRAY)
+            image = _preprocess_image(grayscale)
+            self.latest_image = image[..., None]
             self.last_image_time = msg.header.stamp
             output_msg = self.bridge.cv2_to_imgmsg(
-                (image * 255).astype(np.uint8), encoding="rgb8"
+                (image * 255).astype(np.uint8), encoding="mono8"
             )
             output_msg.header.stamp = rospy.Time.now()  # Optional: add timestamp
             self.image_pub.publish(output_msg)
@@ -141,8 +146,16 @@ class Robot:
     def reset_service_cb(self, req):
         """Resets the controller."""
         rospy.loginfo("Resetting robot...")
-        goal = HomingGoal()
-        self.gripper_homing_action.send_goal(goal)
+        stop = StopActionGoal()
+        stop.header.stamp = rospy.Time.now()
+        self.stop_action_pub.publish(stop)
+        time.sleep(1.0)
+        move = MoveActionGoal()
+        move.header.stamp = rospy.Time.now()
+        move.goal.width = 0.08
+        move.goal.speed = 10.0
+        self.move_action_pub.publish(move)
+        time.sleep(1.0)
         target_pose = PoseStamped()
         target_pose.header.frame_id = "panda_link0"
         target_pose.header.stamp = rospy.Time.now()
@@ -155,7 +168,6 @@ class Robot:
         target_pose.pose.orientation.z = float(self.goal_tip_quat[2])
         target_pose.pose.orientation.w = float(self.goal_tip_quat[3])
         self._desired_ee_pose_pub.publish(target_pose)
-        self.gripper_homing_action.wait_for_result()
         self._running = False
         return []
 
@@ -188,17 +200,26 @@ class Robot:
         pose_msg.pose.orientation.z = float(self.goal_tip_quat[2])
         pose_msg.pose.orientation.w = float(self.goal_tip_quat[3])
         self._desired_ee_pose_pub.publish(pose_msg)
-
-        if action[3] >= 0.0:
-            goal = GripperCommandGoal()
-            goal.command.position = 0.03
-            goal.command.max_effort = 50.0
-            self.gripper_command_client.send_goal(goal)
+        fingers = self.joint_state[-2:].mean()
+        if action[3] >= 0.75:
+            goal = GripperCommandActionGoal()
+            goal.header.stamp = rospy.Time.now()
+            if fingers < 0.0225:
+                stop = StopActionGoal()
+                stop.header.stamp = rospy.Time.now()
+                self.stop_action_pub.publish(stop)
+                position = 0.04
+            else:
+                position = np.clip(fingers + 0.01, 0.0, 0.0402)
+            goal.goal.command.position = position
+            goal.goal.command.max_effort = 0.0
+            self.gripper_command_pub.publish(goal)
         elif action[3] < 0.0:
-            goal = GripperCommandGoal()
-            goal.command.position = 0.015
-            goal.command.max_effort = 50.0
-            self.gripper_command_client.send_goal(goal)
+            goal = GripperCommandActionGoal()
+            goal.header.stamp = rospy.Time.now()
+            goal.goal.command.position = np.clip(fingers - 0.01, 0.0, 0.0402)
+            goal.goal.command.max_effort = 50.0
+            self.gripper_command_pub.publish(goal)
         return new_tip_pos
 
     def get_end_effector_pos(self) -> np.ndarray:
@@ -220,38 +241,6 @@ class Robot:
             rospy.logwarn("joint_state is None")
             ready = False
         return ready
-
-    @property
-    def in_sync(self):
-        # FIXME (yarden)
-        return True
-        timestamp_dict = {
-            "last_image_time": self.last_image_time,
-            "last_tip_pos_time": self.last_tip_pos_time,
-            "last_joint_state_time": self.last_joint_state_time,
-            "last_cube_time": self.last_cube_time,
-        }
-        # Check for None values
-        for name, ts in timestamp_dict.items():
-            if ts is None:
-                rospy.logwarn(f"Timestamp '{name}' is None.")
-                return False
-        keys = list(timestamp_dict.keys())
-        max_diff = rospy.Duration.from_sec(0.15)
-        for i in range(len(keys)):
-            for j in range(i + 1, len(keys)):
-                t1_name = keys[i]
-                t2_name = keys[j]
-                t1 = timestamp_dict[t1_name]
-                t2 = timestamp_dict[t2_name]
-                diff = abs((t1 - t2).to_sec())
-                if diff > max_diff.to_sec():
-                    rospy.logwarn(
-                        f"Timestamps '{t1_name}' and '{t2_name}' differ by {diff:.6f} seconds, "
-                        f"which exceeds threshold of {max_diff.to_sec():.6f} seconds."
-                    )
-                    return False
-        return True
 
     @property
     def safe(self):
@@ -291,51 +280,19 @@ class LinearVelocityEstimator:
         return v_est.flatten()  # Shape: (3,)
 
 
-def _crop_and_resize(rgb_image):
-    crop_top = 50  # pixels to crop from the top
-    crop_bottom = 0  # pixels to crop from the bottom
-    crop_left = 100  # optional: pixels from the left
-    crop_right = 125  # optional: pixels from the right
-    height, width, _ = rgb_image.shape
-    # Ensure you don't go out of bounds
-    rgb_image = rgb_image[
-        crop_top : height - crop_bottom, crop_left : width - crop_right
-    ]
-    rgb_image = cv2.resize(rgb_image, (64, 64), interpolation=cv2.INTER_LINEAR)
-    return rgb_image
+def _crop_and_resize(grayscale):
+    height, width = grayscale.shape
+    # Determine side crop to make the image square
+    new_width = height  # because height is smaller dimension
+    crop_amount = (width - new_width) // 2  # crop equally from both sides
+    # Perform square crop
+    cropped = grayscale[:, crop_amount : crop_amount + new_width]
+    cropped = cv2.resize(cropped, (64, 64), interpolation=cv2.INTER_LINEAR)
+    return cropped
 
 
-def _preprocess_image(rgb_image):
-    rgb_image = _crop_and_resize(rgb_image)
-    out = rgb_image
+def _preprocess_image(grayscale):
+    grayscale = _crop_and_resize(grayscale)
     # Normalize to [0, 1] and convert to float32
-    rgb_image_normalized = out.astype(np.float32) / 255.0
-    return rgb_image_normalized
-
-
-def _mask_colors(rgb_image):
-    image_hsv = cv2.cvtColor(rgb_image, cv2.COLOR_RGB2HSV)
-    # --- Red Mask ---
-    lower_red1 = np.array([0, 100, 100])
-    upper_red1 = np.array([10, 255, 255])
-    lower_red2 = np.array([160, 100, 100])
-    upper_red2 = np.array([180, 255, 255])
-    mask_red = cv2.inRange(image_hsv, lower_red1, upper_red1) | cv2.inRange(
-        image_hsv, lower_red2, upper_red2
-    )
-    # --- White Mask ---
-    lower_white = np.array([0, 0, 170])
-    upper_white = np.array([180, 60, 255])
-    mask_white = cv2.inRange(image_hsv, lower_white, upper_white)
-    kernel = np.ones((3, 3), np.uint8)
-    mask_white = cv2.dilate(mask_white, kernel, iterations=1)
-    # --- Black Mask ---
-    lower_black = np.array([0, 0, 0])
-    upper_black = np.array([180, 255, 50])
-    mask_black = cv2.inRange(image_hsv, lower_black, upper_black)
-    # Combine masks or use individually
-    segmented = cv2.bitwise_and(
-        rgb_image, rgb_image, mask=mask_red | mask_white | mask_black
-    )
-    segmented[mask_black > 0] = [0, 0, 0]
-    return segmented
+    normalized = grayscale.astype(np.float32) / 255.0
+    return normalized

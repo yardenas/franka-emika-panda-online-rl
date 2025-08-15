@@ -40,7 +40,7 @@ class PandaPickCube:
         self.prev_reward = 0.0
         self.reached_box = 0.0
         x_plane = self.robot.start_pos[0]
-        self.target_pos = np.array([x_plane, 0.0, 0.2])
+        self.target_pos = np.array([x_plane, -0.05, 0.2])
         self.target_quat = np.array([1.0, 0.0, 0.0, 0.0])
         self.init_joint_state = np.array(
             [
@@ -62,18 +62,13 @@ class PandaPickCube:
         self.robot.reset_service_cb(None)
         self.prev_reward = 0.0
         self.reached_box = 0.0
-        time.sleep(1.)
+        time.sleep(1.0)
         img = self.robot.get_camera_image()
-        obs = {"pixels/view_0": img}
+        ee = self.robot.get_end_effector_pos()
+        obs = {"pixels/view_0": img, "state": ee}
         return obs
 
     def step(self, action: np.ndarray):
-        count = 50
-        while not self.robot.in_sync and count > 0:
-            time.sleep(0.01)
-            count -= 1
-        if count == 0:
-            raise RuntimeError("Waited too long for sensors to arrive")
         only_yz = np.concatenate(
             ([self.robot.start_pos[0] - self.robot.get_end_effector_pos()[0]], action)
         )
@@ -94,13 +89,19 @@ class PandaPickCube:
         self.prev_reward = max(reward + self.prev_reward, self.prev_reward)
         # Observations
         img = self.robot.get_camera_image()
-        obs = {"pixels/view_0": img}
+        ee = self.robot.get_end_effector_pos()
+        obs = {"pixels/view_0": img, "state": ee}
         out_of_bounds = np.any(np.abs(box_pos) > 1.0)
         out_of_bounds |= box_pos[2] < 0.0
         # FIXME (yarden): this should be corrected
         out_of_bounds = False
         done = out_of_bounds or not self.robot.safe or success
-        info = {**raw_rewards, "reached_box": self.reached_box, "success": success, "lifted": box_pos[2] > 0.05}
+        info = {
+            **raw_rewards,
+            "reached_box": self.reached_box,
+            "success": success,
+            "lifted": box_pos[2] > 0.05,
+        }
         return obs, reward, done, info
 
     def _get_reward(self):
@@ -108,10 +109,7 @@ class PandaPickCube:
         # FIXME (yarden): double check that end effector pos == gripper pos
         gripper_pos = self.robot.get_end_effector_pos()
         pos_err = np.linalg.norm(box_pos - self.target_pos)
-        box_mat = _quat_to_mat(self.robot.get_cube_quat())
-        target_mat = _quat_to_mat(self.target_quat)
-        rot_err = np.linalg.norm(target_mat.ravel()[:6] - box_mat.ravel()[:6])
-        box_target = 1.0 - np.tanh(5 * (0.9 * pos_err + 0.1 * rot_err))
+        box_target = 1.0 - np.tanh(5 * (pos_err))
         gripper_box = 1 - np.tanh(5 * np.linalg.norm(box_pos - gripper_pos))
         qpos = self.robot.get_joint_state()
         robot_target_qpos = 1 - np.tanh(np.linalg.norm(qpos - self.init_joint_state))
@@ -128,25 +126,3 @@ class PandaPickCube:
         }
         return rewards
 
-
-def _quat_to_mat(q):
-    q = np.outer(q, q)
-    return np.array(
-        [
-            [
-                q[0, 0] + q[1, 1] - q[2, 2] - q[3, 3],
-                2 * (q[1, 2] - q[0, 3]),
-                2 * (q[1, 3] + q[0, 2]),
-            ],
-            [
-                2 * (q[1, 2] + q[0, 3]),
-                q[0, 0] - q[1, 1] + q[2, 2] - q[3, 3],
-                2 * (q[2, 3] - q[0, 1]),
-            ],
-            [
-                2 * (q[1, 3] - q[0, 2]),
-                2 * (q[2, 3] + q[0, 1]),
-                q[0, 0] - q[1, 1] - q[2, 2] + q[3, 3],
-            ],
-        ]
-    )
