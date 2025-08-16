@@ -62,7 +62,7 @@ class PandaPickCube:
         self.robot.reset_service_cb(None)
         self.prev_reward = 0.0
         self.reached_box = 0.0
-        time.sleep(1.0)
+        time.sleep(2.0)
         img = self.robot.get_camera_image()
         ee = self.robot.get_end_effector_pos()
         obs = {"pixels/view_0": img, "state": ee}
