@@ -69,7 +69,7 @@ class PandaPickCube:
         img = self.robot.get_camera_image()
         ee = self.robot.get_end_effector_pos()
         action_history = np.array(self.gripper_act)
-        fingers = self.robot.get_joint_state()[-2:]
+        fingers = self.robot.get_joint_state()[-2:] / 0.04
         propreiceptive = np.concatenate([ee, fingers, action_history])
         obs = {"pixels/view_0": img, "state": propreiceptive}
         return obs
@@ -98,7 +98,7 @@ class PandaPickCube:
         ee = self.robot.get_end_effector_pos()
         self.gripper_act.append(action[-1])
         action_history = np.array(self.gripper_act)
-        fingers = self.robot.get_joint_state()[-2:]
+        fingers = self.robot.get_joint_state()[-2:] / 0.04
         propreiceptive = np.concatenate([ee, fingers, action_history])
         obs = {"pixels/view_0": img, "state": propreiceptive}
         out_of_bounds = np.any(np.abs(box_pos) > 1.0)
