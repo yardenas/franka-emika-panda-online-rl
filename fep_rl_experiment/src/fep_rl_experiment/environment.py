@@ -1,3 +1,4 @@
+from collections import deque
 from typing import Any, NamedTuple
 import numpy as np
 import time
@@ -57,15 +58,20 @@ class PandaPickCube:
                 ]
             ]
         )
+        self.gripper_act = deque(maxlen=5)
 
     def reset(self) -> Dict[str, Any]:
         self.robot.reset_service_cb(None)
         self.prev_reward = 0.0
         self.reached_box = 0.0
+        self.gripper_act.extend([0.0] * 5)
         time.sleep(2.0)
         img = self.robot.get_camera_image()
         ee = self.robot.get_end_effector_pos()
-        obs = {"pixels/view_0": img, "state": ee}
+        action_history = np.array(self.gripper_act)
+        fingers = self.robot.get_joint_state()[-2:]
+        propreiceptive = np.concatenate([ee, fingers, action_history])
+        obs = {"pixels/view_0": img, "state": propreiceptive}
         return obs
 
     def step(self, action: np.ndarray):
@@ -90,7 +96,11 @@ class PandaPickCube:
         # Observations
         img = self.robot.get_camera_image()
         ee = self.robot.get_end_effector_pos()
-        obs = {"pixels/view_0": img, "state": ee}
+        self.gripper_act.append(action[-1])
+        action_history = np.array(self.gripper_act)
+        fingers = self.robot.get_joint_state()[-2:]
+        propreiceptive = np.concatenate([ee, fingers, action_history])
+        obs = {"pixels/view_0": img, "state": propreiceptive}
         out_of_bounds = np.any(np.abs(box_pos) > 1.0)
         out_of_bounds |= box_pos[2] < 0.0
         # FIXME (yarden): this should be corrected
@@ -125,4 +135,3 @@ class PandaPickCube:
             "robot_target_qpos": robot_target_qpos,
         }
         return rewards
-
