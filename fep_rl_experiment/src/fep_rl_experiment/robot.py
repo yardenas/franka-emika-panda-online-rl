@@ -201,7 +201,7 @@ class Robot:
         pose_msg.pose.orientation.w = float(self.goal_tip_quat[3])
         self._desired_ee_pose_pub.publish(pose_msg)
         fingers = self.joint_state[-2:].mean()
-        if action[3] >= 0.95:
+        if action[3] >= 0.:
             goal = GripperCommandActionGoal()
             goal.header.stamp = rospy.Time.now()
             if fingers < 0.015:
