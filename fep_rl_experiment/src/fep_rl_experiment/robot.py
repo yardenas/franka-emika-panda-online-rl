@@ -202,6 +202,7 @@ class Robot:
         self._desired_ee_pose_pub.publish(pose_msg)
         fingers = self.joint_state[-2:].mean()
         if action[3] >= 0.:
+            rospy.loginfo("Opening gripper")
             goal = GripperCommandActionGoal()
             goal.header.stamp = rospy.Time.now()
             if fingers < 0.015:
@@ -215,6 +216,7 @@ class Robot:
             goal.goal.command.max_effort = 0.0
             self.gripper_command_pub.publish(goal)
         else:
+            rospy.loginfo("Closing Gripper")
             goal = GripperCommandActionGoal()
             goal.header.stamp = rospy.Time.now()
             goal.goal.command.position = np.clip(fingers - 0.01, 0.0, 0.0402)
