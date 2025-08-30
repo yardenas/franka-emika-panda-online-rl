@@ -37,7 +37,9 @@ class ExperimentDriver:
         )
         self.server_thread.start()
         self.reward_pub = rospy.Publisher("instant_reward", Float32, queue_size=10)
-        self.episode_reward_pub = rospy.Publisher("episode_reward", Float32, queue_size=10)
+        self.episode_reward_pub = rospy.Publisher(
+            "episode_reward", Float32, queue_size=10
+        )
         rospy.loginfo("Experiment driver initialized.")
 
     def sample_trajectory(self, policy):
@@ -74,8 +76,8 @@ class ExperimentDriver:
         done = False
         steps = 0
         obs = self.env.reset()
-        ongoing_reward = 0.
-        while not done and steps < self.episode_length:
+        ongoing_reward = 0.0
+        while not done and steps < self.trajectory_length:
             start = time.time()
             action = policy(obs)
             next_obs, reward, done, info = self.env.step(action)
@@ -85,7 +87,7 @@ class ExperimentDriver:
             end = time.time()
             elapsed = end - start
             steps += 1
-            truncated = not done and steps == self.episode_length - 1
+            truncated = not done and steps == self.trajectory_length - 1
             transition = Transition(
                 obs,
                 action,
@@ -106,7 +108,7 @@ class ExperimentDriver:
                 )
             obs = next_obs  # Advance observation for next step
         if not done:
-            assert len(transitions) == self.episode_length
+            assert len(transitions) == self.trajectory_length
         return transitions
 
 
