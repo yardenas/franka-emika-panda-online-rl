@@ -3,6 +3,7 @@ from collections import defaultdict
 import rospy
 import threading
 import time
+from std_msgs.msg import Float32
 from fep_rl_experiment.transitions_server import TransitionsServer
 from fep_rl_experiment.session import Session
 from fep_rl_experiment.environment import PandaPickCube
@@ -35,11 +36,13 @@ class ExperimentDriver:
             target=self.transitions_server.loop, daemon=True
         )
         self.server_thread.start()
+        self.reward_pub = rospy.Publisher("instant_reward", Float32, queue_size=10)
+        self.episode_reward_pub = rospy.Publisher("episode_reward", Float32, queue_size=10)
         rospy.loginfo("Experiment driver initialized.")
 
     def sample_trajectory(self, policy):
         rospy.loginfo(f"Starting trajectory sampling... Run id: {self.run_id}")
-        trajectory = _collect_trajectory(self.env, policy, self.trajectory_length, self.dt)
+        trajectory = self._collect_trajectory(policy)
         self.summarize_trial(trajectory)
         return trajectory
 
@@ -66,40 +69,45 @@ class ExperimentDriver:
     def robot_ok(self):
         return self.robot.ok
 
-
-def _collect_trajectory(env, policy, episode_length, dt):
-    transitions: list[Transition] = []
-    done = False
-    steps = 0
-    obs = env.reset()
-    while not done and steps < episode_length:
-        start = time.time()
-        action = policy(obs)
-        next_obs, reward, done, info = env.step(action)
-        end = time.time()
-        elapsed = end - start
-        steps += 1
-        truncated = not done and steps == episode_length - 1
-        transition = Transition(
-            obs,
-            action,
-            reward,
-            1 - done,
-            next_obs,
-            {"state_extras": {"truncation": truncated, **info}},
-        )
-        transition.extras["state_extras"]["time"] = elapsed
-        transitions.append(transition)
-        # Wait or warn if behind schedule
-        remaining = dt - (time.time() - start)
-        if remaining > 0:
-            time.sleep(remaining)
-        else:
-            rospy.logwarn(f"Iteration took too long: {elapsed:.4f}s > dt={dt:.4f}s")
-        obs = next_obs  # Advance observation for next step
-    if not done:
-        assert len(transitions) == episode_length
-    return transitions
+    def _collect_trajectory(self, policy):
+        transitions: list[Transition] = []
+        done = False
+        steps = 0
+        obs = self.env.reset()
+        ongoing_reward = 0.
+        while not done and steps < self.episode_length:
+            start = time.time()
+            action = policy(obs)
+            next_obs, reward, done, info = self.env.step(action)
+            self.reward_pub.publish(reward)
+            self.episode_reward_pub.publish(ongoing_reward)
+            ongoing_reward += reward
+            end = time.time()
+            elapsed = end - start
+            steps += 1
+            truncated = not done and steps == self.episode_length - 1
+            transition = Transition(
+                obs,
+                action,
+                reward,
+                1 - done,
+                next_obs,
+                {"state_extras": {"truncation": truncated, **info}},
+            )
+            transition.extras["state_extras"]["time"] = elapsed
+            transitions.append(transition)
+            # Wait or warn if behind schedule
+            remaining = self.dt - (time.time() - start)
+            if remaining > 0:
+                time.sleep(remaining)
+            else:
+                rospy.logwarn(
+                    f"Iteration took too long: {elapsed:.4f}s > dt={self.dt:.4f}s"
+                )
+            obs = next_obs  # Advance observation for next step
+        if not done:
+            assert len(transitions) == self.episode_length
+        return transitions
 
 
 def _format_reward_summary(table_data):
