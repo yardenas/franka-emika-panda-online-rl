@@ -109,6 +109,7 @@ class ExperimentDriver:
             obs = next_obs  # Advance observation for next step
         if not done:
             assert len(transitions) == self.trajectory_length
+        self.episode_reward_pub.publish(ongoing_reward)
         return transitions
 
 
