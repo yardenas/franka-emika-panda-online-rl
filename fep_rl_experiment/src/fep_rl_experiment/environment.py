@@ -103,7 +103,7 @@ class PandaPickCube:
         obs = {"pixels/view_0": img, "state": propreiceptive}
         out_of_bounds = np.any(np.abs(box_pos) > 1.0)
         out_of_bounds |= box_pos[2] < 0.0
-        done = self.robot.safe or success
+        done = not self.robot.safe or success
         info = {
             **raw_rewards,
             "reached_box": self.reached_box,
