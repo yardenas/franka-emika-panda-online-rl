@@ -242,6 +242,9 @@ class Robot:
         if self.joint_state is None:
             rospy.logwarn("joint_state is None")
             ready = False
+        if self.joint_state[-2:].mean() <= 0.35:
+            rospy.logwarn("Fingers are not open")
+            ready = False
         return ready
 
     @property

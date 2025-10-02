@@ -76,6 +76,9 @@ class ExperimentDriver:
         done = False
         steps = 0
         obs = self.env.reset()
+        while not self.experiment_driver.robot_ok:
+            rospy.loginfo("Waiting the robot to be ready...")
+            time.sleep(2.5)
         ongoing_reward = 0.0
         while not done and steps < self.trajectory_length:
             start = time.time()
