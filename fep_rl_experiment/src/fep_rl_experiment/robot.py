@@ -146,16 +146,7 @@ class Robot:
     def reset_service_cb(self, req):
         """Resets the controller."""
         rospy.loginfo("Resetting robot...")
-        stop = StopActionGoal()
-        stop.header.stamp = rospy.Time.now()
-        self.stop_action_pub.publish(stop)
-        time.sleep(1.0)
-        move = MoveActionGoal()
-        move.header.stamp = rospy.Time.now()
-        move.goal.width = 0.08
-        move.goal.speed = 10.0
-        self.move_action_pub.publish(move)
-        time.sleep(1.0)
+        self.open_gripper()
         target_pose = PoseStamped()
         target_pose.header.frame_id = "panda_link0"
         target_pose.header.stamp = rospy.Time.now()
@@ -201,7 +192,7 @@ class Robot:
         pose_msg.pose.orientation.w = float(self.goal_tip_quat[3])
         self._desired_ee_pose_pub.publish(pose_msg)
         fingers = self.joint_state[-2:].mean()
-        if action[3] >= 0.:
+        if action[3] >= 0.0:
             rospy.loginfo("Opening gripper")
             goal = GripperCommandActionGoal()
             goal.header.stamp = rospy.Time.now()
@@ -227,6 +218,23 @@ class Robot:
     def get_end_effector_pos(self) -> np.ndarray:
         return self.current_tip_pos
 
+    def open_gripper(self):
+        if not self.ok:
+            rospy.logwarn("Not ready yet. Cannot open gripper.")
+            return
+        move = MoveActionGoal()
+        move.header.stamp = rospy.Time.now()
+        move.goal.width = 0.08
+        move.goal.speed = 10.0
+        self.move_action_pub.publish(move)
+
+    @property
+    def fingers_open(self):
+        if self.joint_state is None:
+            return False
+        fingers = self.joint_state[-2:].mean()
+        return fingers >= 0.025
+
     @property
     def ok(self):
         ready = True
@@ -241,9 +249,6 @@ class Robot:
             ready = False
         if self.joint_state is None:
             rospy.logwarn("joint_state is None")
-            ready = False
-        if self.joint_state[-2:].mean() <= 0.35:
-            rospy.logwarn("Fingers are not open")
             ready = False
         return ready
 

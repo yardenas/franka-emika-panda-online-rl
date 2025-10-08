@@ -2,6 +2,7 @@ from collections import deque
 from typing import Any, NamedTuple
 import numpy as np
 import time
+import rospy
 from fep_rl_experiment.robot import Robot
 
 from typing import Dict
@@ -62,6 +63,15 @@ class PandaPickCube:
 
     def reset(self) -> Dict[str, Any]:
         self.robot.reset_service_cb(None)
+        while not self.robot.fingers_open:
+            rospy.logwarn(f"Fingers are not open: {self.robot.joint_state[-2:].mean()}")
+            self.robot.open_gripper()
+            time.sleep(2.5)
+        box_pos = self.robot.get_cube_pos()
+        while box_pos[2] > 0.05:
+            rospy.logwarn(f"Cube is not on the table: {box_pos}")
+            time.sleep(2.5)
+            box_pos = self.robot.get_cube_pos()
         self.prev_reward = 0.0
         self.reached_box = 0.0
         self.gripper_act.extend([0.0] * 5)
